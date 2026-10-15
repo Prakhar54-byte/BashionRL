@@ -1,0 +1,14 @@
+[window]
+title = "BastionRL"
+width = 1000
+height = 700
+fps = 60
+
+[grid]
+rows = 10
+cols = 16
+tile_size = 50
+
+[assets]
+grass = "Assets/Main/Terrian/grass/towerDefense_tile231.png"
+road = "Assets/Main/Terrian/road/towerDefense_tile257.png"

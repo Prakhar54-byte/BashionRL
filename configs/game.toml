@@ -1,14 +1,24 @@
+
 [window]
 title = "BastionRL"
-width = 1000
-height = 700
+width = 960
+height = 640
 fps = 60
 
 [grid]
-rows = 10
-cols = 16
+rows = 20
+cols = 30
 tile_size = 50
 
-[assets]
-grass = "Assets/Main/Terrian/grass/towerDefense_tile231.png"
-road = "Assets/Main/Terrian/road/towerDefense_tile257.png"
+[assets.map]
+path = "Assets/Maps/map1.png"
+pathway = "Assets/Maps/map1.tmj"
+
+[assets.enemies]
+enemy1 = "Assets/Main/Entities/Enemies/enemy1.png"
+enemy2 = "Assets/Main/Entities/Enemies/enemy2.png"
+
+[assets.defense]
+slot = "Assets/Main/Entities/Defense/slot.png"
+cannon = "Assets/Main/Entities/Defense/cannon.png"
+double_cannon = "Assets/Main/Entities/Defense/double_cannon.png"

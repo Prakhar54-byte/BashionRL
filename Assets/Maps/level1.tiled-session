@@ -1,0 +1,40 @@
+{
+    "activeFile": "map1.tmx",
+    "expandedProjectPaths": [
+        "."
+    ],
+    "fileStates": {
+        "map1.tmj": {
+            "scale": 1,
+            "selectedLayer": 3,
+            "viewCenter": {
+                "x": 461,
+                "y": 317
+            }
+        },
+        "map1.tmx": {
+            "scale": 1,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": 521,
+                "y": 289
+            }
+        },
+        "towerDefense_vector.tsx": {
+            "scaleInDock": 1,
+            "scaleInEditor": 0.75
+        }
+    },
+    "last.imagePath": "/mnt/volume/Projects/BashionRL/Assets/kenny/Vector",
+    "map.lastUsedFormat": "json",
+    "openFiles": [
+        "map1.tmx",
+        "towerDefense_vector.tsx"
+    ],
+    "project": "level1.tiled-project",
+    "recentFiles": [
+        "towerDefense_vector.tsx",
+        "map1.tmx"
+    ],
+    "tileset.lastUsedFormat": "tsx"
+}

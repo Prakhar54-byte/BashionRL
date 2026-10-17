@@ -4,25 +4,23 @@
 # Install
 uv sync --extra rl --dev
 
-# Train on medium
-uv run --extra rl python -m src.game.rl train --difficulty medium --steps 200000 --output runs/medium
+# Train the baseline (schema 2; retrain old checkpoints)
+uv run --extra rl python -m src.game.rl train --difficulty baseline --steps 200000 --seed 0 --max-steps 2400 --output runs/baseline-v2
 
-# Continue training on hard
-uv run --extra rl python -m src.game.rl train --difficulty hard --resume runs/medium/final.zip --steps 200000 --output runs/hard
+# Evaluate and save metrics
+uv run --extra rl python -m src.game.rl evaluate --difficulty baseline --model runs/baseline-v2/final.zip --episodes 100 --seed 40000 --max-steps 2400 --output runs/baseline-v2/evaluation.json
 
-# Test the medium model on both difficulties
-uv run --extra rl python -m src.game.rl evaluate --difficulty medium --model runs/medium/final.zip --episodes 100 --seed 40000
-uv run --extra rl python -m src.game.rl evaluate --difficulty hard --model runs/medium/final.zip --episodes 100 --seed 40000
+# Short training/evaluation smoke run
+uv run --extra rl python -m src.game.rl train --steps 256 --max-steps 20 --eval-freq 256 --eval-episodes 2 --output runs/smoke-v2
+uv run --extra rl python -m src.game.rl evaluate --model runs/smoke-v2/final.zip --episodes 2 --max-steps 20 --output runs/smoke-v2/evaluation.json
 
-# Test the hard model
-uv run --extra rl python -m src.game.rl evaluate --difficulty hard --model runs/hard/final.zip --episodes 100 --seed 40000
+# Human inspection and model viewing
+uv run python main.py --difficulty baseline --seed 42
+uv run --extra rl python main.py --difficulty baseline --model runs/baseline-v2/final.zip --max-steps 2400
 
-# Human testing
-uv run python main.py --difficulty medium --seed 42
-uv run python main.py --difficulty hard --seed 42
-
-# Watch the trained model
-uv run --extra rl python main.py --difficulty hard --model runs/hard/final.zip
+# Optional difficulty experiments, separate from the baseline
+uv run --extra rl python -m src.game.rl train --difficulty medium --steps 200000 --output runs/medium-v2
+uv run --extra rl python -m src.game.rl train --difficulty hard --resume runs/medium-v2/final.zip --steps 200000 --output runs/hard-v2
 
 # Automated checks
 uv run --extra rl pytest

@@ -20,7 +20,7 @@ learns tower placement from game-state numbers and rewards.
 | Invalid-action masking | Exclude occupied slots and unaffordable tower purchases from the action distribution. Waiting remains legal. Apply masks during training and model prediction. |
 | Minibatch optimization | Collect 256 decisions, divide them into minibatches of 64, and train for 10 epochs over the rollout. That normally gives 40 optimizer steps per rollout with one environment. |
 | Gradient clipping | The library limits gradient norm to 0.5 to reduce excessively large parameter updates. |
-| Reward shaping | Small kill/wave rewards and base-damage penalties provide feedback before the final win/loss reward. |
+| Reward shaping | Kill/wave rewards and damage, spending, and invalid-action penalties provide feedback before the final outcome. |
 
 The policy uses `MlpPolicy` with separate actor and critic MLPs, Tanh hidden
 activations, and Adam optimization. The learning rate defaults to 0.0003. The
@@ -47,19 +47,28 @@ Step reward:
 + 1.0 × newly completed waves
 - base HP lost / 10
 + 20 on victory OR -20 on defeat
+- 0.1 for an invalid action
+- resources actually spent / 1000
 ```
 
-Buying a tower, spending resources, waiting, and simply remaining alive do not
-earn rewards. Resource income from kills affects purchasing power separately
-from the RL reward.
+A Cannon purchase costs 0.1 reward and a Double Cannon costs 0.15 reward. Failed
+purchases spend nothing and receive only the invalid-action penalty. Invalid
+actions, including out-of-range indices, advance time as a no-op. Maskable PPO
+normally avoids these through its mask. Waiting receives no passive reward;
+completing a wave provides the survival/progression reward. Resource income from
+kills affects purchasing power separately from the RL reward.
 
 The training cycle is: observe → mask illegal actions → sample an action → advance
 combat → record reward and next observation → repeat for 256 decisions → estimate
 advantages/returns → update actor and critic → collect the next rollout.
 
 Clear all 10 waves with base HP remaining to win. Reaching zero base HP is defeat.
-Either is episode termination. Reaching 2400 decisions without either outcome is
-time-limit truncation, without an extra win/loss reward. Both require a reset.
+Either is episode termination. Reaching the configured `max_steps` (default 2400)
+without either outcome is time-limit truncation, without an extra win/loss reward.
+Both require a reset. Training, evaluation, and model viewing expose `--max-steps`.
+The default `baseline` uses original wave settings with no added enemy HP growth;
+`medium` and `hard` are optional balance experiments, not baseline requirements.
+Observation/reward schema 2 requires retraining old 211-input checkpoints.
 
 Implementation: `src/game/rl/__main__.py` and `src/game/rl/environment.py`.
 Algorithm reference: [Maskable PPO documentation](https://sb3-contrib.readthedocs.io/en/master/modules/ppo_mask.html).
@@ -67,12 +76,12 @@ Algorithm reference: [Maskable PPO documentation](https://sb3-contrib.readthedoc
 ## 2. States / observations
 
 The simulator holds the complete internal game state. The policy receives a
-compact **211-element float32 observation vector**:
+fixed **547-element float32 observation vector** for the supplied map:
 
 ```text
-8 global values + 31 slots × 5 values + 2 enemy types × 12 route bins × 2 values
-= 8 + 155 + 48
-= 211
+8 global values + 31 slots × 5 values + 64 padded enemy rows × 6 values
+= 8 + 155 + 384
+= 547
 ```
 
 ### Global values: indices 0–7
@@ -86,7 +95,7 @@ compact **211-element float32 observation vector**:
 | 4 | Enemies still waiting to spawn / 50 | Incoming pressure in the current wave. |
 | 5 | Spawn countdown, in seconds | Time until another scheduled spawn. |
 | 6 | Intermission countdown, in seconds | Preparation time recorded by the wave director. |
-| 7 | Decisions elapsed / 2400 | Proximity to the episode time limit. |
+| 7 | Decisions elapsed / configured max_steps | Proximity to the episode time limit. |
 
 The denominators 200 and 50 are fixed scaling constants. These values are not
 clipped, and money or other scaled quantities can exceed 1. Timers are raw
@@ -109,32 +118,36 @@ These values describe where a tower can be placed, existing defenses, and their
 firing readiness. The five-value block for slot index `i` starts at `8 + 5*i`.
 Tower costs, ranges, and damage are fixed game configuration, not extra inputs.
 
-### Enemy-route values: indices 163–210
+### Padded enemy values: indices 163–546
 
-Divide the route into **12 equal-distance bins along the actual polyline**.
-For each enemy type and bin, record:
+Every active enemy has an individual row; unused rows are entirely zero.
+There are 64 rows, with six float32 values per row:
 
-| Value | Encoding | Purpose |
-|---|---|---|
-| Enemy count | Number of enemies in the bin / 10 | Where enemies are concentrated. |
-| Remaining health | Sum of current enemy HP in the bin / 100 | How much damage is needed there. |
+| Column | Encoding |
+|---|---|
+| 0 | Presence: 1 for an enemy, 0 for padding. |
+| 1 | Current X position / map width. |
+| 2 | Current Y position / map height. |
+| 3 | Current individual health / 100; values can exceed 1. |
+| 4 | Enemy type: 0.5 for Walking Soldier, 1 for Advanced Soldier. |
+| 5 | Distance travelled along the pathway / total pathway length. |
 
-The current enemy types are Walking Soldier (`enemy1`) and Advanced Soldier
-(`enemy2`). Their blocks follow the enemy order in the TOML configuration. Each
-type has 12 bins, each containing count followed by health. Bins progress from the
-spawn point toward the base. Three enemies with 230 total remaining HP produce
-`[0.3, 2.3]` for that type/bin.
+Sort enemies by descending route progress: closest to the base first. Equal
+progress retains spawn order. Keep the first 64 rows if capacity is exceeded,
+report the excess in `info["enemies_omitted"]`, and continue simulating all enemies.
+The supplied presets spawn at most 34 enemies in a wave, below this capacity.
+Raise capacity and retrain before using substantially larger waves.
 
 ### Information limits
 
-The observation summarizes enemies instead of providing exact positions,
-individual HP, projectile states, or random-generator state. It also omits an
-explicit difficulty label and wave-phase flag. Consequently, it is partially
+The observation provides individual enemy positions and HP, but omits projectile
+states, random-generator state, an explicit difficulty label, and wave-phase flag.
+Capacity overflow can also omit enemies. Consequently, it remains partially
 observed: different internal situations can produce the same observation.
 The current MLP has no recurrent memory.
 
 The separate 63-element Boolean action mask identifies currently legal actions;
-it is not part of the 211-element observation. Diagnostic `info` fields such as
+it is not part of the 547-element observation. Diagnostic `info` fields such as
 success, total kills, leaks, spending, and reward totals are not additional
 policy inputs.
 

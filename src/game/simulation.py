@@ -20,7 +20,7 @@ class Simulation:
 
     timestep = 1.0 / 60.0
 
-    def __init__(self, difficulty="medium", *, config: GameConfig | None = None,
+    def __init__(self, difficulty="baseline", *, config: GameConfig | None = None,
                  render_assets=False, seed=None):
         self.config = config or load_config()
         if difficulty not in self.config.difficulties:

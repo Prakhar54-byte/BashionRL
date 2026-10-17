@@ -51,6 +51,21 @@ damage = 20.0
 fire_rate = 2.0
 projectile_speed = 400.0
 
+[difficulty.baseline]
+max_waves = 10
+base_health = 100.0
+starting_resources = 200
+enemy_health_growth = 0.0
+
+[difficulty.baseline.waves]
+initial_enemy_count = 5
+additional_enemies_per_wave = 2
+spawn_interval = 1.0
+initial_intermission = 3.0
+intermission_between_waves = 5.0
+difficulty_growth = 0.15
+
+# Optional balance experiments; RL commands default to baseline.
 [difficulty.medium]
 max_waves = 10
 base_health = 100.0

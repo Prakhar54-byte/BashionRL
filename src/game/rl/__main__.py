@@ -24,7 +24,7 @@ def coverage_scores(env):
 
 
 def evaluate(args):
-    env = BastionEnv(args.difficulty)
+    env = BastionEnv(args.difficulty, max_steps=args.max_steps)
     model = load_model(args.model, env) if args.model else None
     scores = coverage_scores(env)
     episodes = []
@@ -50,18 +50,27 @@ def evaluate(args):
         "difficulty": args.difficulty,
         "policy": str(args.model) if model else args.policy,
         "episodes": len(episodes),
+        "seed": args.seed,
+        "max_steps": args.max_steps,
+        "mean_episode_reward": float(np.mean([item["reward"] for item in episodes])),
+        "std_episode_reward": float(np.std([item["reward"] for item in episodes])),
         "win_rate": float(np.mean([item["is_success"] for item in episodes])),
+        "survival_rate": float(np.mean([item["survived"] for item in episodes])),
+        "truncation_rate": float(np.mean([item["truncated"] for item in episodes])),
+        "mean_waves_reached": float(np.mean([item["waves_reached"] for item in episodes])),
         "mean_waves_completed": float(np.mean([item["waves_completed"] for item in episodes])),
         "mean_base_health": float(np.mean([item["base_health"] for item in episodes])),
         "mean_leaks": float(np.mean([item["leaks"] for item in episodes])),
+        "mean_kills": float(np.mean([item["kills"] for item in episodes])),
         "mean_spent": float(np.mean([item["spent"] for item in episodes])),
         "results": episodes,
     }
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(result, indent=2) + "\n")
+    args.output = args.output or Path("runs") / f"evaluation-{args.difficulty}.json"
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps({key: value for key, value in result.items() if key != "results"}, indent=2))
     env.close()
+    return result
 
 
 def train(args):
@@ -74,13 +83,14 @@ def train(args):
     torch.set_num_threads(1)
     args.output = args.output or Path("runs") / args.difficulty
     args.output.mkdir(parents=True, exist_ok=True)
-    env = BastionEnv(args.difficulty)
-    evaluation = BastionEnv(args.difficulty)
+    env = BastionEnv(args.difficulty, max_steps=args.max_steps)
+    evaluation = BastionEnv(args.difficulty, max_steps=args.max_steps)
     evaluation.reset(seed=10000)
     monitored = Monitor(env, str(args.output / "episodes.csv"),
                         info_keywords=("is_success", "waves_completed", "base_health",
                                        "reward_kills", "reward_base_damage",
-                                       "reward_waves", "reward_outcome"))
+                                       "reward_waves", "reward_outcome",
+                                       "reward_invalid_action", "reward_spending"))
     model = load_model(args.resume, env) if args.resume else MaskablePPO(
         "MlpPolicy", monitored, seed=args.seed, device="cpu", verbose=1,
         n_steps=256, batch_size=64, gamma=0.995,
@@ -121,9 +131,11 @@ def main():
     evaluation.add_argument("--seed", type=int, default=30000)
     evaluation.add_argument("--output", type=Path)
     for command in (training, evaluation):
-        command.add_argument("--difficulty", choices=("medium", "hard"), default="medium")
+        command.add_argument("--difficulty", choices=("baseline", "medium", "hard"), default="baseline")
+        command.add_argument("--max-steps", type=int, default=2400,
+                             help="Episode horizon in decisions (each up to 0.5 simulated seconds)")
     args = parser.parse_args()
-    for field in ("steps", "eval_freq", "eval_episodes", "episodes"):
+    for field in ("steps", "eval_freq", "eval_episodes", "episodes", "max_steps"):
         if hasattr(args, field) and getattr(args, field) <= 0:
             parser.error(f"--{field.replace('_', '-')} must be positive")
     if args.command == "train":

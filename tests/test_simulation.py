@@ -45,7 +45,7 @@ def test_final_wave_requires_all_spawns_and_enemies_to_clear():
     config = load_config()
     medium = replace(config.difficulties["medium"], max_waves=1)
     config = replace(config, difficulties={"medium": medium})
-    sim = Simulation(config=config, seed=2)
+    sim = Simulation("medium", config=config, seed=2)
     sim.director.wave_number = 1
     sim.director.wave_active = True
     sim.director.enemies_remaining_to_spawn = 1

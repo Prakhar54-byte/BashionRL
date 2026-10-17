@@ -13,10 +13,13 @@ from src.game.state.game_state import GameStatus
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Play BastionRL or watch a trained agent.")
-    parser.add_argument("--difficulty", choices=("medium", "hard"), default="medium")
+    parser.add_argument("--difficulty", choices=("baseline", "medium", "hard"), default="baseline")
+    parser.add_argument("--max-steps", type=int, default=2400, help="AI episode horizon in decisions")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--model", help="Maskable PPO checkpoint (.zip)")
     args = parser.parse_args()
+    if args.max_steps < 1:
+        parser.error("--max-steps must be positive")
     config = load_config()
     pygame.init()
 
@@ -37,7 +40,7 @@ def main() -> None:
             from src.game.rl.checkpoint import load_model
             from src.game.rl.environment import BastionEnv
 
-            env = BastionEnv(args.difficulty, render_assets=True)
+            env = BastionEnv(args.difficulty, max_steps=args.max_steps, render_assets=True)
             model = load_model(args.model, env)
             env.reset(seed=args.seed)
             simulation = env.simulation

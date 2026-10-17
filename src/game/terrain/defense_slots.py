@@ -25,6 +25,8 @@ class DefenseSlots:
         self,
         map_path: Path,
         slot_image_path: Path,
+        *,
+        load_image: bool = True,
     ) -> None:
         map_path = map_path.resolve()
         slot_image_path = slot_image_path.resolve()
@@ -44,7 +46,9 @@ class DefenseSlots:
         self.tile_width = int(map_data["tilewidth"])
         self.tile_height = int(map_data["tileheight"])
 
-        self.slot_image = pygame.image.load(str(slot_image_path)).convert_alpha()
+        self.slot_image = (
+            pygame.image.load(str(slot_image_path)).convert_alpha() if load_image else None
+        )
 
         self.slots: list[DefenseSlot] = []
         self._load_slots(map_data.get("layers", []))
@@ -110,6 +114,8 @@ class DefenseSlots:
         show_ids: bool = False,
     ) -> None:
         """Draw slot icons, scaling them to the map and window."""
+        if self.slot_image is None:
+            raise RuntimeError("Slot images were not loaded for rendering.")
         scale_x = surface.get_width() / self.map_width
         scale_y = surface.get_height() / self.map_height
 

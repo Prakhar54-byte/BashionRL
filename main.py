@@ -1,19 +1,22 @@
 from __future__ import annotations
 
+import argparse
+
 import pygame
 
 from src.game.config import load_config
-from src.game.entities.defense_tower import DefenseTower
-from src.game.entities.enemy import Enemy, EnemyConfig
 from src.game.rendering.asset_loader import AssetLoader
 from src.game.rendering.terrain_renderer import TerrainRenderer
-from src.game.state.game_state import GameState, GameStatus
-from src.game.systems.wave_director import WaveConfig, WaveDirector
-from src.game.terrain.defense_slots import DefenseSlots
-from src.game.terrain.pathway import Pathway
+from src.game.simulation import Simulation
+from src.game.state.game_state import GameStatus
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Play BastionRL or watch a trained agent.")
+    parser.add_argument("--difficulty", choices=("medium", "hard"), default="medium")
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--model", help="Maskable PPO checkpoint (.zip)")
+    args = parser.parse_args()
     config = load_config()
     pygame.init()
 
@@ -28,171 +31,29 @@ def main() -> None:
             asset_loader=asset_loader,
         )
 
-        pathway = Pathway(config.pathway_path)
+        env = None
+        model = None
+        if args.model:
+            from src.game.rl.checkpoint import load_model
+            from src.game.rl.environment import BastionEnv
 
-        defense_slots = DefenseSlots(
-            map_path=config.pathway_path,
-            slot_image_path=config.defense_slot_path,
-        )
-
-        enemy_sprites = {
-            name: asset_loader.load_texture(path)
-            for name, path in config.enemy_assets.items()
-        }
-
-        defense_sprites = {
-            name: asset_loader.load_texture(path)
-            for name, path in config.defense_assets.items()
-        }
-
-        if not enemy_sprites:
-            raise ValueError("No enemy sprites are configured.")
-
-        if not defense_sprites:
-            raise ValueError("No defense sprites are configured.")
-
-        # Enemy types are ordered from weakest to strongest.
-        enemy_configs = {
-            "enemy1": EnemyConfig(
-                name="Walking Soldier",
-                speed=90.0,
-                max_health=100.0,
-                size_scale=0.5,
-                leak_damage=10.0,
-                kill_reward=25,
-            ),
-            "enemy2": EnemyConfig(
-                name="Advanced Soldier",
-                speed=110.0,
-                max_health=180.0,
-                size_scale=0.5,
-                leak_damage=10.0,
-                kill_reward=40,
-            ),
-        }
-
-        enemy_configs = {
-            name: enemy_configs[name] for name in enemy_sprites if name in enemy_configs
-        }
-
-        if not enemy_configs:
-            raise ValueError("No enemy configurations match the configured sprites.")
-
-        tower_configs = {
-            "cannon": {
-                "name": "Cannon",
-                "cost": 100,
-                "range_radius": 180.0,
-                "damage": 25.0,
-                "fire_rate": 1.0,
-                "projectile_speed": 350.0,
-                "size_scale": 0.5,
-            },
-            "double_cannon": {
-                "name": "Double Cannon",
-                "cost": 150,
-                "range_radius": 220.0,
-                "damage": 20.0,
-                "fire_rate": 2.0,
-                "projectile_speed": 400.0,
-                "size_scale": 0.5,
-            },
-        }
-
-        defense_types = [name for name in tower_configs if name in defense_sprites]
-
-        if not defense_types:
-            raise ValueError(
-                "No tower configurations match the configured defense sprites."
-            )
-
-        enemy_types = list(enemy_configs)
+            env = BastionEnv(args.difficulty, render_assets=True)
+            model = load_model(args.model, env)
+            env.reset(seed=args.seed)
+            simulation = env.simulation
+        else:
+            simulation = Simulation(args.difficulty, config=config,
+                                    render_assets=True, seed=args.seed)
+        pathway = simulation.pathway
+        defense_slots = simulation.defense_slots
+        game_state = simulation.state
+        towers = simulation.towers
+        enemies = simulation.enemies
+        tower_configs = config.towers
+        defense_types = simulation.tower_types
         selected_defense = defense_types[0]
-
-        game_state = GameState(
-            max_base_health=100.0,
-            starting_resources=200,
-        )
-
-        enemies: list[Enemy] = []
-        towers: list[DefenseTower] = []
-
-        wave_config = WaveConfig(
-            initial_enemy_count=5,
-            additional_enemies_per_wave=2,
-            spawn_interval=1.0,
-            initial_intermission=3.0,
-            intermission_between_waves=5.0,
-            difficulty_growth=0.15,
-        )
-
-        wave_director = WaveDirector(
-            enemy_types=enemy_types,
-            config=wave_config,
-            seed=42,
-        )
-
-        def spawn_enemy(enemy_type: str) -> None:
-            """Spawn the enemy selected by the wave director."""
-            if game_state.is_terminal:
-                return
-
-            if enemy_type not in enemy_configs:
-                raise ValueError(f"Unknown enemy type requested: {enemy_type}")
-
-            enemy = Enemy(
-                pathway=pathway,
-                sprite=enemy_sprites[enemy_type],
-                config=enemy_configs[enemy_type],
-            )
-
-            enemies.append(enemy)
-            game_state.register_spawn()
-
-        def place_tower(slot) -> None:
-            """Place a tower in an empty slot if resources allow it."""
-            if game_state.is_terminal or slot.occupied:
-                return
-
-            tower_config = tower_configs[selected_defense]
-            cost = tower_config["cost"]
-
-            if not game_state.resources.can_afford(cost):
-                return
-
-            tower = DefenseTower(
-                slot_id=slot.slot_id,
-                position=slot.center,
-                sprite=defense_sprites[selected_defense],
-                range_radius=tower_config["range_radius"],
-                damage=tower_config["damage"],
-                fire_rate=tower_config["fire_rate"],
-                projectile_speed=tower_config["projectile_speed"],
-                size_scale=tower_config["size_scale"],
-            )
-
-            if not game_state.resources.spend(cost):
-                return
-
-            towers.append(tower)
-            slot.occupied = True
-
-        def reset_game() -> None:
-            """Reset the episode and restart wave one."""
-            nonlocal wave_director
-
-            enemies.clear()
-            towers.clear()
-            game_state.reset()
-
-            for slot in defense_slots.slots:
-                slot.occupied = False
-
-            wave_director = WaveDirector(
-                enemy_types=enemy_types,
-                config=wave_config,
-                seed=42,
-            )
+        ai_elapsed = 0.5
+        ai_finished = False
 
         clock = pygame.time.Clock()
         font = pygame.font.Font(None, 25)
@@ -211,7 +72,12 @@ def main() -> None:
                         running = False
 
                     elif event.key == pygame.K_r:
-                        reset_game()
+                        if env:
+                            env.reset(seed=args.seed)
+                        else:
+                            simulation.reset(seed=args.seed)
+                        ai_elapsed = 0.5
+                        ai_finished = False
 
                     elif event.key == pygame.K_q and "cannon" in defense_types:
                         selected_defense = "cannon"
@@ -223,55 +89,32 @@ def main() -> None:
                     event.type == pygame.MOUSEBUTTONDOWN
                     and event.button == 1
                     and not game_state.is_terminal
+                    and model is None
                 ):
                     mouse_x, mouse_y = event.pos
 
                     map_x = mouse_x * pathway.map_width / screen.get_width()
                     map_y = mouse_y * pathway.map_height / screen.get_height()
 
-                    for slot in defense_slots.slots:
+                    for slot_index, slot in enumerate(defense_slots.slots):
                         if slot.rect.collidepoint(
                             round(map_x),
                             round(map_y),
                         ):
-                            place_tower(slot)
+                            simulation.place_tower(slot_index, selected_defense)
                             break
 
-            # Simulate the game only while the episode is active.
-            if not game_state.is_terminal:
-                # The wave director controls all enemy spawning.
-                wave_director.update(
-                    delta_time=delta_time,
-                    active_enemy_count=sum(1 for enemy in enemies if enemy.alive),
-                    spawn_enemy=spawn_enemy,
-                )
-
-                # Move living enemies along the pathway.
-                for enemy in enemies:
-                    if enemy.alive:
-                        enemy.update(delta_time)
-
-                # Process leaks before tower attacks. A leaked enemy
-                # must not be counted as a kill or damage the base twice.
-                for enemy in enemies:
-                    if enemy.alive and enemy.reached_end:
-                        game_state.register_leak(enemy.config.leak_damage)
-                        enemy.alive = False
-
-                # Towers attack living enemies.
-                if not game_state.is_terminal:
-                    for tower in towers:
-                        tower.update(delta_time, enemies)
-
-                # Count defeated enemies exactly once, after tower attacks.
-                for enemy in enemies:
-                    if not enemy.alive and not enemy.reached_end:
-                        game_state.register_kill(enemy.config.kill_reward)
-
-                # Remove defeated and leaked enemies.
-                enemies[:] = [
-                    enemy for enemy in enemies if enemy.alive and not enemy.reached_end
-                ]
+            if env and model and not ai_finished:
+                ai_elapsed += delta_time
+                if ai_elapsed >= 0.5:
+                    ai_elapsed -= 0.5
+                    action, _ = model.predict(env.observation(), deterministic=True,
+                                              action_masks=env.action_masks())
+                    _, _, terminated, truncated, _ = env.step(int(action))
+                    ai_finished = terminated or truncated
+            elif model is None:
+                simulation.advance(delta_time)
+            wave_director = simulation.director
 
             # Render the scene.
             terrain_renderer.render(screen)
@@ -297,7 +140,7 @@ def main() -> None:
                     f"{game_state.max_base_health:.0f}"
                 ),
                 f"Resources: {game_state.resource_balance}",
-                f"Wave: {wave_director.wave_number}",
+                f"Wave: {wave_director.wave_number}/{simulation.balance.max_waves} | {args.difficulty}",
                 (f"Enemies alive: {sum(1 for enemy in enemies if enemy.alive)}"),
                 (f"Waiting to spawn: {wave_director.enemies_remaining_to_spawn}"),
                 f"Total spawned: {game_state.enemies_spawned}",
@@ -305,9 +148,9 @@ def main() -> None:
                     f"Kills: {game_state.enemies_killed} | "
                     f"Leaks: {game_state.enemies_leaked}"
                 ),
-                f"Selected tower: {selected_tower_config['name']}",
-                f"Tower cost: {selected_tower_config['cost']}",
-                "Q/W: Select tower | Click slot: Place",
+                f"Selected tower: {selected_tower_config.name}",
+                f"Tower cost: {selected_tower_config.cost}",
+                "AI spectator" if model else "Q/W: Select tower | Click slot: Place",
                 "R: Reset | ESC: Quit",
             ]
 
@@ -357,7 +200,7 @@ def main() -> None:
                 screen.blit(text_surface, (18, y_position))
 
             # Episode termination overlay.
-            if game_state.status == GameStatus.LOST:
+            if game_state.is_terminal or ai_finished:
                 overlay = pygame.Surface(
                     screen.get_size(),
                     pygame.SRCALPHA,
@@ -366,7 +209,8 @@ def main() -> None:
                 screen.blit(overlay, (0, 0))
 
                 title = large_font.render(
-                    "BASE DESTROYED",
+                    ("VICTORY" if game_state.status == GameStatus.WON else
+                     "BASE DESTROYED" if game_state.status == GameStatus.LOST else "TIME LIMIT"),
                     True,
                     (255, 80, 80),
                 )

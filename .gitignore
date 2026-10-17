@@ -14,3 +14,6 @@ wheels/
 
 # unrefined assets
 kenny/
+
+# Generated RL checkpoints and evaluation logs
+runs/

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pygame
 
-from game.rendering.asset_loader import AssetLoader
+from src.game.rendering.asset_loader import AssetLoader
 
 
 class TerrainRenderer:

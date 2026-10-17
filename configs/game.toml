@@ -22,3 +22,59 @@ enemy2 = "Assets/Main/Entities/Enemies/enemy2.png"
 slot = "Assets/Main/Entities/Defense/slot.png"
 cannon = "Assets/Main/Entities/Defense/cannon.png"
 double_cannon = "Assets/Main/Entities/Defense/double_cannon.png"
+
+[enemies.enemy1]
+name = "Walking Soldier"
+speed = 90.0
+max_health = 100.0
+kill_reward = 25
+
+[enemies.enemy2]
+name = "Advanced Soldier"
+speed = 110.0
+max_health = 180.0
+kill_reward = 40
+
+[towers.cannon]
+name = "Cannon"
+cost = 100
+range_radius = 180.0
+damage = 25.0
+fire_rate = 1.0
+projectile_speed = 350.0
+
+[towers.double_cannon]
+name = "Double Cannon"
+cost = 150
+range_radius = 220.0
+damage = 20.0
+fire_rate = 2.0
+projectile_speed = 400.0
+
+[difficulty.medium]
+max_waves = 10
+base_health = 100.0
+starting_resources = 200
+enemy_health_growth = 0.20
+
+[difficulty.medium.waves]
+initial_enemy_count = 5
+additional_enemies_per_wave = 2
+spawn_interval = 1.0
+initial_intermission = 3.0
+intermission_between_waves = 5.0
+difficulty_growth = 0.10
+
+[difficulty.hard]
+max_waves = 10
+base_health = 100.0
+starting_resources = 200
+enemy_health_growth = 0.35
+
+[difficulty.hard.waves]
+initial_enemy_count = 7
+additional_enemies_per_wave = 3
+spawn_interval = 0.8
+initial_intermission = 3.0
+intermission_between_waves = 4.0
+difficulty_growth = 0.15

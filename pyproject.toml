@@ -9,6 +9,22 @@ dependencies = [
     "ruff>=0.17.1",
 ]
 
+[project.optional-dependencies]
+rl = [
+    "gymnasium>=1.2,<2",
+    "numpy>=1.26,<3",
+    "sb3-contrib>=2.7,<3",
+    "torch>=2.5",
+]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",

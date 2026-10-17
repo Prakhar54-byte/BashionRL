@@ -27,10 +27,10 @@ jobs:
           enable-cache: true
 
       - name: Install locked dependencies
-        run: uv sync --locked --dev
+        run: uv sync --locked --dev --extra rl
 
       - name: Run Ruff
-        run: uv run ruff check .
+        run: uv run --extra rl ruff check .
 
       - name: Run tests
-        run: uv run pytest
+        run: uv run --extra rl pytest

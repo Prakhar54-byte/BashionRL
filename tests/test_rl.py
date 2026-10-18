@@ -1,5 +1,7 @@
 import json
 from dataclasses import replace
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -248,3 +250,61 @@ def test_cli_rejects_invalid_horizon(monkeypatch):
     with pytest.raises(SystemExit) as error:
         main()
     assert error.value.code == 2
+
+
+@pytest.mark.parametrize(("frame_ms", "ticks_per_frame", "prediction_count"),
+                         [(1000 / 60, 1, 2), (2000, 6, 12)])
+def test_spectator_frame_pacing_and_stall_recovery(monkeypatch, frame_ms, ticks_per_frame, prediction_count):
+    import pygame
+
+    import main as frontend
+
+    monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
+    monkeypatch.setenv("SDL_AUDIODRIVER", "dummy")
+    monkeypatch.setattr("sys.argv", ["main.py", "--model", "test.zip"])
+    environments, frames = [], []
+    predict = Mock(return_value=(0, None))
+
+    def create_env(*args, **kwargs):
+        env = BastionEnv(*args, **kwargs)
+        environments.append(env)
+        return env
+
+    monkeypatch.setattr("src.game.rl.environment.BastionEnv", create_env)
+    monkeypatch.setattr("src.game.rl.checkpoint.load_model",
+                        lambda *args: SimpleNamespace(predict=predict))
+    monkeypatch.setattr(pygame.time, "Clock", lambda: SimpleNamespace(tick=lambda fps: frame_ms))
+    monkeypatch.setattr(pygame.display, "flip", lambda: frames.append(environments[0].simulation.ticks))
+    monkeypatch.setattr(pygame.event, "get", lambda: (
+        [pygame.event.Event(pygame.QUIT)] if len(frames) >= 59 else []
+    ))
+    frontend.main()
+    assert frames == [index * ticks_per_frame for index in range(1, 61)]
+    assert predict.call_count == prediction_count
+
+
+def test_rendered_ticks_match_headless_steps():
+    headless, rendered = BastionEnv(), BastionEnv()
+    headless.reset(seed=42)
+    rendered.reset(seed=42)
+    for action in [1] + [0] * 19:
+        expected = headless.step(action)
+        previous_ticks = rendered.simulation.ticks
+        for index, result in enumerate(rendered.step_ticks(action), start=1):
+            assert rendered.simulation.ticks == previous_ticks + index
+            if index < 30:
+                assert result is None
+        assert index == 30
+        np.testing.assert_array_equal(result[0], expected[0])
+        assert result[1:] == expected[1:]
+
+
+def test_rendered_ticks_stop_immediately_on_defeat():
+    env = BastionEnv()
+    env.reset(seed=0)
+    env.simulation.state.base_health = 10
+    env.simulation._spawn_enemy("enemy1")
+    env.simulation.enemies[0].reached_end = True
+    results = list(env.step_ticks(0))
+    assert len(results) == env.simulation.ticks == 1
+    assert results[0][2] and not results[0][3]

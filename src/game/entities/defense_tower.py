@@ -92,6 +92,9 @@ class DefenseTower:
         self.cooldown = 0.0
         self.angle = 0.0
         self.projectiles: list[Projectile] = []
+        self._scaled_sprite = None
+        self._rotated_sprite = None
+        self._draw_angle = None
 
     def _find_target(
         self,
@@ -213,15 +216,14 @@ class DefenseTower:
             round(source_height * self.size_scale * scale_y),
         )
 
-        scaled_sprite = pygame.transform.smoothscale(
-            self.sprite,
-            (target_width, target_height),
-        )
-
-        rotated_sprite = pygame.transform.rotate(
-            scaled_sprite,
-            self.angle,
-        )
+        target_size = (target_width, target_height)
+        if self._scaled_sprite is None or self._scaled_sprite.get_size() != target_size:
+            self._scaled_sprite = pygame.transform.smoothscale(self.sprite, target_size)
+            self._draw_angle = None
+        if self._draw_angle != self.angle:
+            self._rotated_sprite = pygame.transform.rotate(self._scaled_sprite, self.angle)
+            self._draw_angle = self.angle
+        rotated_sprite = self._rotated_sprite
 
         sprite_rect = rotated_sprite.get_rect(center=center)
         surface.blit(rotated_sprite, sprite_rect)

@@ -55,7 +55,8 @@ def main() -> None:
         tower_configs = config.towers
         defense_types = simulation.tower_types
         selected_defense = defense_types[0]
-        ai_elapsed = 0.5
+        ai_elapsed = 0.0
+        ai_step = None
         ai_finished = False
 
         clock = pygame.time.Clock()
@@ -64,7 +65,8 @@ def main() -> None:
         running = True
 
         while running:
-            delta_time = clock.tick(config.fps) / 1000.0
+            # Long window stalls pause game time rather than queueing seconds of catch-up work.
+            delta_time = min(clock.tick(config.fps) / 1000.0, 0.1)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -79,7 +81,8 @@ def main() -> None:
                             env.reset(seed=args.seed)
                         else:
                             simulation.reset(seed=args.seed)
-                        ai_elapsed = 0.5
+                        ai_elapsed = 0.0
+                        ai_step = None
                         ai_finished = False
 
                     elif event.key == pygame.K_q and "cannon" in defense_types:
@@ -109,12 +112,17 @@ def main() -> None:
 
             if env and model and not ai_finished:
                 ai_elapsed += delta_time
-                if ai_elapsed >= 0.5:
-                    ai_elapsed -= 0.5
-                    action, _ = model.predict(env.observation(), deterministic=True,
-                                              action_masks=env.action_masks())
-                    _, _, terminated, truncated, _ = env.step(int(action))
-                    ai_finished = terminated or truncated
+                while ai_elapsed + 1e-12 >= simulation.timestep and not ai_finished:
+                    ai_elapsed -= simulation.timestep
+                    if ai_step is None:
+                        action, _ = model.predict(env.observation(), deterministic=True,
+                                                  action_masks=env.action_masks())
+                        ai_step = env.step_ticks(int(action))
+                    result = next(ai_step)
+                    if result is not None:
+                        _, _, terminated, truncated, _ = result
+                        ai_finished = terminated or truncated
+                        ai_step = None
             elif model is None:
                 simulation.advance(delta_time)
             wave_director = simulation.director

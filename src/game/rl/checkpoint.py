@@ -36,10 +36,12 @@ def save_metadata(path, env, *, seed, steps):
 
 
 def load_model(path, env):
+    import torch
     from sb3_contrib import MaskablePPO
 
     path = Path(path)
     metadata = json.loads(path.with_suffix(".json").read_text())
     if metadata["environment"] != manifest(env):
         raise ValueError("Checkpoint environment differs from the current map/config/schema.")
+    torch.set_num_threads(1)
     return MaskablePPO.load(path, env=env, device="cpu")

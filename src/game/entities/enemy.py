@@ -68,6 +68,8 @@ class Enemy:
 
         # Source sprites face East (right).
         self.direction = pygame.Vector2(1, 0)
+        self._draw_key = None
+        self._draw_sprite = None
 
     def update(self, delta_time: float) -> None:
         """Move along the pathway independently of frame rate."""
@@ -128,21 +130,15 @@ class Enemy:
         screen_y = self.position.y * scale_y
 
         angle = math.degrees(math.atan2(-self.direction.y, self.direction.x))
-        rotated_sprite = pygame.transform.rotate(self.sprite, angle)
-
-        sprite_width = max(
-            1,
-            round(rotated_sprite.get_width() * scale_x * self.size_scale),
-        )
-        sprite_height = max(
-            1,
-            round(rotated_sprite.get_height() * scale_y * self.size_scale),
-        )
-
-        scaled_sprite = pygame.transform.scale(
-            rotated_sprite,
-            (sprite_width, sprite_height),
-        )
+        draw_key = (angle, scale_x, scale_y, self.size_scale)
+        if draw_key != self._draw_key:
+            rotated_sprite = pygame.transform.rotate(self.sprite, angle)
+            sprite_width = max(1, round(rotated_sprite.get_width() * scale_x * self.size_scale))
+            sprite_height = max(1, round(rotated_sprite.get_height() * scale_y * self.size_scale))
+            self._draw_sprite = pygame.transform.scale(rotated_sprite, (sprite_width, sprite_height))
+            self._draw_key = draw_key
+        scaled_sprite = self._draw_sprite
+        sprite_width = scaled_sprite.get_width()
 
         sprite_rect = scaled_sprite.get_rect(center=(round(screen_x), round(screen_y)))
         surface.blit(scaled_sprite, sprite_rect)

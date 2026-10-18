@@ -39,6 +39,8 @@ There are **63 discrete actions** for the supplied map:
 
 Each action advances up to 30 simulation ticks at 1/60 second per tick: normally
 **0.5 simulated seconds per decision**. Advancement stops early if the game ends.
+Spectator mode renders between individual physics ticks; headless training consumes
+the same ticks immediately, without drawing or real-time delays.
 
 Step reward:
 

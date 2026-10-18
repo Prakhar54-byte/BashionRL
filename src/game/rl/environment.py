@@ -59,6 +59,12 @@ class BastionEnv(gym.Env):
         ], dtype=bool)
 
     def step(self, action):
+        for result in self.step_ticks(action):
+            pass
+        return result
+
+    def step_ticks(self, action):
+        """Yield after each physics tick; only the last yield contains the step result."""
         if self._ended:
             raise RuntimeError("Call reset() before stepping a finished episode.")
         sim = self.simulation
@@ -68,10 +74,12 @@ class BastionEnv(gym.Env):
         if not invalid and int(action) != 0:
             slot_index, tower_index = divmod(int(action) - 1, len(sim.tower_types))
             sim.place_tower(slot_index, sim.tower_types[tower_index])
-        for _ in range(self.decision_ticks):
+        for tick in range(self.decision_ticks):
             sim.tick()
             if sim.state.is_terminal:
                 break
+            if tick + 1 < self.decision_ticks:
+                yield None
         self.steps += 1
         terms = {
             "kills": 0.1 * (sim.state.enemies_killed - previous[0]),
@@ -90,7 +98,7 @@ class BastionEnv(gym.Env):
             self.reward_totals[name] += value
         info = self.info()
         info.update(reward_terms=terms, invalid_action=invalid)
-        return self.observation(), sum(terms.values()), terminated, truncated, info
+        yield self.observation(), sum(terms.values()), terminated, truncated, info
 
     def observation(self):
         sim = self.simulation

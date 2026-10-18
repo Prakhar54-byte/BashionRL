@@ -116,6 +116,8 @@ class DefenseSlots:
         """Draw slot icons, scaling them to the map and window."""
         if self.slot_image is None:
             raise RuntimeError("Slot images were not loaded for rendering.")
+        if all(slot.occupied for slot in self.slots):
+            return
         scale_x = surface.get_width() / self.map_width
         scale_y = surface.get_height() / self.map_height
 

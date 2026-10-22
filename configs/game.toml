@@ -44,6 +44,9 @@ max_health = 100.0
 size_scale = 0.5
 leak_damage = 10.0
 kill_reward = 25
+attack_damage = 10.0
+attack_interval = 1.0
+attack_range = 85.0
 
 [enemies.enemy2]
 name = "Advanced Soldier"
@@ -52,8 +55,47 @@ max_health = 180.0
 size_scale = 0.5
 leak_damage = 10.0
 kill_reward = 40
+attack_damage = 15.0
+attack_interval = 0.8
+attack_range = 85.0
+
+[combat]
+target_priority = ["defense", "resource", "king"]
+
+[[king_towers]]
+structure_id = "king1"
+position = [32, 512]
+max_health = 500.0
+repair_cost = 100
+repair_duration = 5.0
+
+[[king_towers]]
+structure_id = "king2"
+position = [2016, 480]
+max_health = 500.0
+repair_cost = 100
+repair_duration = 5.0
+
+[[king_towers]]
+structure_id = "king3"
+position = [1358.66666666667, 1248]
+max_health = 500.0
+repair_cost = 100
+repair_duration = 5.0
+
+[[resource_towers]]
+structure_id = "resource1"
+position = [620, 326]
+max_health = 200.0
+production_amount = 10
+production_interval = 5.0
 
 [enemies.light_tank]
+kind = "tank"
+attack_damage = 25.0
+attack_interval = 2
+attack_range = 180.0
+projectile_speed = 250.0
 name = "Light Tank"
 speed = 65.0
 max_health = 250.0
@@ -62,6 +104,11 @@ leak_damage = 20.0
 kill_reward = 50
 
 [enemies.heavy_tank]
+kind = "tank"
+attack_damage = 40.0
+attack_interval = 2.5
+attack_range = 180.0
+projectile_speed = 250.0
 name = "Heavy Tank"
 speed = 35.0
 max_health = 500.0

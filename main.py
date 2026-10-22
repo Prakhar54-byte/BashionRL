@@ -91,6 +91,11 @@ def main() -> None:
                     elif event.key == pygame.K_w and "double_cannon" in defense_types:
                         selected_defense = "double_cannon"
 
+                    elif pygame.K_1 <= event.key <= pygame.K_9:
+                        index = event.key - pygame.K_1
+                        if index < len(simulation.king_towers):
+                            simulation.repair_king_tower(simulation.king_towers[index].structure_id)
+
                 elif (
                     event.type == pygame.MOUSEBUTTONDOWN
                     and event.button == 1
@@ -130,6 +135,8 @@ def main() -> None:
             # Render the scene.
             terrain_renderer.render(screen)
             defense_slots.draw(screen, show_ids=False)
+            for structure in [*simulation.resource_towers, *simulation.king_towers]:
+                structure.draw(screen, pathway.map_width, pathway.map_height)
 
             for tower in towers:
                 tower.draw(
@@ -147,7 +154,7 @@ def main() -> None:
 
             status_lines = [
                 (
-                    f"Base HP: {game_state.base_health:.0f}/"
+                    f"King HP: {game_state.base_health:.0f}/"
                     f"{game_state.max_base_health:.0f}"
                 ),
                 f"Resources: {game_state.resource_balance}",
@@ -163,6 +170,7 @@ def main() -> None:
                 f"Tower cost: {selected_tower_config.cost}",
                 "AI spectator" if model else "Q/W: Select tower | Click slot: Place",
                 "R: Reset | ESC: Quit",
+                f"Kings alive: {sum(king.alive for king in simulation.king_towers)} | 1-9: Repair King",
             ]
 
             hud_width = 440
@@ -221,7 +229,7 @@ def main() -> None:
 
                 title = large_font.render(
                     ("VICTORY" if game_state.status == GameStatus.WON else
-                     "BASE DESTROYED" if game_state.status == GameStatus.LOST else "TIME LIMIT"),
+                     "KINGS DESTROYED" if game_state.status == GameStatus.LOST else "TIME LIMIT"),
                     True,
                     (255, 80, 80),
                 )

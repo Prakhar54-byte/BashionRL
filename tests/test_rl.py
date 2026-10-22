@@ -90,9 +90,13 @@ def test_timeout_is_truncation_and_requires_reset():
 def test_loss_reward_is_emitted_once():
     env = BastionEnv(max_steps=1)
     env.reset(seed=0)
-    env.simulation.state.base_health = 10
-    env.simulation._spawn_enemy("enemy1")
-    env.simulation.enemies[0].reached_end = True
+    sim = env.simulation
+    for king in sim.king_towers[:-1]:
+        king.take_damage(king.max_health)
+    king = sim.king_towers[-1]
+    king.take_damage(king.health - 10)
+    sim._spawn_enemy("enemy1")
+    sim.enemies[0].position = king.position.copy()
     _, reward, terminated, truncated, info = env.step(0)
     assert terminated and not truncated
     assert info["reward_terms"] == {"kills": 0, "base_damage": -1, "waves": 0,
@@ -147,7 +151,7 @@ def test_model_save_load_and_manifest_guard(tmp_path):
     path.with_suffix(".json").write_text(json.dumps(metadata))
     with pytest.raises(ValueError, match="Checkpoint environment differs"):
         load_model(path, env)
-    metadata["environment"]["schema"] = 2
+    metadata["environment"]["schema"] = 3
     metadata["environment"]["slots"].reverse()
     path.with_suffix(".json").write_text(json.dumps(metadata))
     with pytest.raises(ValueError, match="Checkpoint environment differs"):
@@ -170,10 +174,10 @@ def test_enemy_rows_preserve_positions_health_and_padding():
     rows = observation[163:].reshape(64, 6)
     np.testing.assert_allclose(rows[0], [
         1, second.position.x / sim.pathway.map_width,
-        second.position.y / sim.pathway.map_height, 0.8, 1,
+        second.position.y / sim.pathway.map_height, 0.8, 2 / 3,
         start.distance_to(second.position) / env.route_length,
     ], rtol=1e-6)
-    assert rows[1, 3] == 1 and rows[1, 4] == 0.5
+    assert rows[1, 3] == 1 and rows[1, 4] == pytest.approx(1 / 3)
     np.testing.assert_array_equal(rows[2:], 0)
     assert env.observation_space.contains(observation)
 
@@ -235,7 +239,7 @@ def test_cli_train_and_evaluate_smoke(tmp_path, monkeypatch):
     model = output / "final.zip"
     assert model.is_file() and (output / "best_model.zip").is_file()
     metadata = json.loads(model.with_suffix(".json").read_text())
-    assert metadata["environment"]["schema"] == 2
+    assert metadata["environment"]["schema"] == 3
     assert metadata["training_max_steps"] == 2
     assert (output / "progress.csv").is_file()
     report = tmp_path / "model-evaluation.json"
@@ -302,9 +306,13 @@ def test_rendered_ticks_match_headless_steps():
 def test_rendered_ticks_stop_immediately_on_defeat():
     env = BastionEnv()
     env.reset(seed=0)
-    env.simulation.state.base_health = 10
-    env.simulation._spawn_enemy("enemy1")
-    env.simulation.enemies[0].reached_end = True
+    sim = env.simulation
+    for king in sim.king_towers[:-1]:
+        king.take_damage(king.max_health)
+    king = sim.king_towers[-1]
+    king.take_damage(king.health - 10)
+    sim._spawn_enemy("enemy1")
+    sim.enemies[0].position = king.position.copy()
     results = list(env.step_ticks(0))
     assert len(results) == env.simulation.ticks == 1
     assert results[0][2] and not results[0][3]

@@ -3,64 +3,13 @@ import math
 import pygame
 
 from src.game.entities.enemy import Enemy
+from src.game.entities.projectile import Projectile
+from src.game.entities.structure import Structure
 
 
-class Projectile:
-    def __init__(
-        self,
-        position: pygame.Vector2,
-        target: Enemy,
-        speed: float,
-        damage: float,
-    ) -> None:
-        self.position = position.copy()
-        self.target = target
-        self.speed = speed
-        self.damage = damage
-        self.alive = True
+class DefenseTower(Structure):
+    structure_kind = "defense"
 
-    def update(self, delta_time: float) -> None:
-        if not self.alive:
-            return
-
-        if not self.target.alive or self.target.reached_end:
-            self.alive = False
-            return
-
-        offset = self.target.position - self.position
-        distance = offset.length()
-        travel_distance = self.speed * max(0.0, delta_time)
-
-        if distance <= max(6.0, travel_distance):
-            self.target.take_damage(self.damage)
-            self.alive = False
-            return
-
-        if distance > 0:
-            self.position += offset / distance * travel_distance
-
-    def draw(
-        self,
-        surface: pygame.Surface,
-        map_width: float,
-        map_height: float,
-    ) -> None:
-        if not self.alive or map_width <= 0 or map_height <= 0:
-            return
-
-        scale_x = surface.get_width() / map_width
-        scale_y = surface.get_height() / map_height
-
-        point = (
-            round(self.position.x * scale_x),
-            round(self.position.y * scale_y),
-        )
-
-        pygame.draw.circle(surface, (255, 220, 90), point, 4)
-        pygame.draw.circle(surface, (255, 255, 220), point, 2)
-
-
-class DefenseTower:
     def __init__(
         self,
         slot_id: int,
@@ -72,9 +21,11 @@ class DefenseTower:
         projectile_speed: float = 350.0,
         size_scale: float = 3.0,
         slot_size: tuple[float, float] = (64.0, 64.0),
+        max_health: float = 200.0,
+        on_health_changed=None,
     ) -> None:
+        super().__init__(f"defense:{slot_id}", position, max_health, on_health_changed=on_health_changed)
         self.slot_id = slot_id
-        self.position = pygame.Vector2(position)
         self.sprite = sprite
 
         self.range_radius = range_radius
@@ -104,7 +55,7 @@ class DefenseTower:
         nearest_distance = self.range_radius
 
         for enemy in enemies:
-            if not enemy.alive or enemy.reached_end:
+            if not enemy.alive:
                 continue
 
             distance = self.position.distance_to(enemy.position)
@@ -120,6 +71,9 @@ class DefenseTower:
         delta_time: float,
         enemies: list[Enemy],
     ) -> None:
+        if self.destroyed:
+            self.projectiles.clear()
+            return
         self.cooldown = max(0.0, self.cooldown - delta_time)
 
         target = self._find_target(enemies)
@@ -143,7 +97,7 @@ class DefenseTower:
                 self.cooldown = 1.0 / self.fire_rate if self.fire_rate > 0 else 0.0
 
         for projectile in self.projectiles:
-            projectile.update(delta_time)
+            projectile.update(delta_time, enemies)
 
         self.projectiles = [
             projectile for projectile in self.projectiles if projectile.alive
@@ -157,6 +111,10 @@ class DefenseTower:
         show_range: bool = False,
     ) -> None:
         if map_width <= 0 or map_height <= 0:
+            return
+
+        if self.destroyed:
+            super().draw(surface, map_width, map_height, show_range)
             return
 
         scale_x = surface.get_width() / map_width
@@ -228,5 +186,6 @@ class DefenseTower:
         sprite_rect = rotated_sprite.get_rect(center=center)
         surface.blit(rotated_sprite, sprite_rect)
 
+        self.draw_health(surface, map_width, map_height)
         for projectile in self.projectiles:
             projectile.draw(surface, map_width, map_height)

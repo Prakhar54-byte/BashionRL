@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from src.game.entities.enemy import EnemyConfig
+from src.game.entities.king_tower import KingTower
+from src.game.entities.resource_tower import ResourceTower
 from src.game.systems.wave_director import WaveConfig
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -19,6 +21,7 @@ class TowerConfig:
     fire_rate: float
     projectile_speed: float
     size_scale: float = 0.5
+    max_health: float = 200.0
 
     def __post_init__(self) -> None:
         if not self.name.strip():
@@ -27,7 +30,7 @@ class TowerConfig:
             raise ValueError("Tower cost must be a positive integer.")
         if any(not math.isfinite(value) or value <= 0 for value in (
             self.range_radius, self.damage, self.fire_rate,
-            self.projectile_speed, self.size_scale,
+            self.projectile_speed, self.size_scale, self.max_health,
         )):
             raise ValueError("Tower combat values must be positive.")
 
@@ -70,6 +73,20 @@ class GameConfig:
     enemies: dict[str, EnemyConfig]
     towers: dict[str, TowerConfig]
     difficulties: dict[str, DifficultyConfig]
+    king_towers: tuple[dict, ...]
+    resource_towers: tuple[dict, ...]
+    target_priority: tuple[str, ...]
+
+    def __post_init__(self):
+        if not self.king_towers:
+            raise ValueError("Configure at least one King Tower.")
+        structures = [KingTower(**values) for values in self.king_towers]
+        structures.extend(ResourceTower(**values) for values in self.resource_towers)
+        ids = [structure.structure_id for structure in structures]
+        if len(ids) != len(set(ids)) or any(value.startswith("defense:") for value in ids):
+            raise ValueError("Structure IDs must be unique and cannot use the defense: prefix.")
+        if len(self.target_priority) != 3 or set(self.target_priority) != {"defense", "resource", "king"}:
+            raise ValueError("Target priority must contain defense, resource, and king exactly once.")
 
 
 def load_config(path: Path = CONFIG_PATH) -> GameConfig:
@@ -116,4 +133,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
             )
             for name, values in data["difficulty"].items()
         },
+        king_towers=tuple(data["king_towers"]),
+        resource_towers=tuple(data.get("resource_towers", [])),
+        target_priority=tuple(data["combat"]["target_priority"]),
     )

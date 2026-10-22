@@ -37,7 +37,8 @@ def test_kill_and_leak_are_accounted_once():
     sim.tick()
     sim.tick()
     assert sim.state.enemies_leaked == 1
-    assert sim.state.base_health == 90
+    assert sim.state.base_health == sim.state.max_base_health
+    assert sim.state.total_leak_damage == 10
     assert sim.state.enemies_killed == 1
 
 
@@ -73,7 +74,7 @@ def test_no_defenses_eventually_loses_and_stops():
         if sim.state.is_terminal:
             break
     assert sim.state.status == GameStatus.LOST
-    assert sim.state.enemies_leaked == 10
+    assert all(king.destroyed for king in sim.king_towers)
     assert sim.state.enemies_killed == 0
 
 

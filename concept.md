@@ -47,7 +47,7 @@ Step reward:
 ```text
 0.1 × new kills
 + 1.0 × newly completed waves
-- base HP lost / 10
+- combined King Tower HP lost / 10
 + 20 on victory OR -20 on defeat
 - 0.1 for an invalid action
 - resources actually spent / 1000
@@ -64,13 +64,17 @@ The training cycle is: observe → mask illegal actions → sample an action →
 combat → record reward and next observation → repeat for 256 decisions → estimate
 advantages/returns → update actor and critic → collect the next rollout.
 
-Clear all 10 waves with base HP remaining to win. Reaching zero base HP is defeat.
+Clear all 10 waves with a surviving King Tower to win. Destroying the final
+configured King Tower is immediate defeat. The base-health fields now report
+combined King health, rather than a separate leak-based objective.
 Either is episode termination. Reaching the configured `max_steps` (default 2400)
 without either outcome is time-limit truncation, without an extra win/loss reward.
 Both require a reset. Training, evaluation, and model viewing expose `--max-steps`.
 The default `baseline` uses original wave settings with no added enemy HP growth;
 `medium` and `hard` are optional balance experiments, not baseline requirements.
-Observation/reward schema 2 requires retraining old 211-input checkpoints.
+Combat/objective schema 3 requires retraining previous checkpoints. Tanks reuse
+the Advanced Soldier sprite with a separately aimed gun and projectile attacks.
+King repairs are simulation/manual controls, not additional RL actions.
 
 Implementation: `src/game/rl/__main__.py` and `src/game/rl/environment.py`.
 Algorithm reference: [Maskable PPO documentation](https://sb3-contrib.readthedocs.io/en/master/modules/ppo_mask.html).
@@ -90,7 +94,7 @@ fixed **547-element float32 observation vector** for the supplied map:
 
 | Index | Value sent to the agent | Why it matters |
 |---|---|---|
-| 0 | Current base HP / maximum base HP | Remaining margin for enemy leaks. |
+| 0 | Combined King HP / maximum combined King HP | Remaining objective health. |
 | 1 | Current resources / 200 | Money available for tower purchases. |
 | 2 | Current wave number / maximum waves | Current stage and increasing difficulty. |
 | 3 | Completed waves / maximum waves | Progress through the episode. |
@@ -131,7 +135,7 @@ There are 64 rows, with six float32 values per row:
 | 1 | Current X position / map width. |
 | 2 | Current Y position / map height. |
 | 3 | Current individual health / 100; values can exceed 1. |
-| 4 | Enemy type: 0.5 for Walking Soldier, 1 for Advanced Soldier. |
+| 4 | Enemy type: 1/3 for Walking Soldier, 2/3 for Advanced Soldier, 1 for Tank. |
 | 5 | Distance travelled along the pathway / total pathway length. |
 
 Sort enemies by descending route progress: closest to the base first. Equal
@@ -144,6 +148,8 @@ Raise capacity and retrain before using substantially larger waves.
 
 The observation provides individual enemy positions and HP, but omits projectile
 states, random-generator state, an explicit difficulty label, and wave-phase flag.
+Individual structure HP, repair progress, and enemy attack cooldowns are also
+hidden; the global health input reports combined King HP.
 Capacity overflow can also omit enemies. Consequently, it remains partially
 observed: different internal situations can produce the same observation.
 The current MLP has no recurrent memory.

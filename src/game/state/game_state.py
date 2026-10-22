@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -62,18 +63,18 @@ class GameState:
         self.resources.earn(reward)
 
     def register_leak(self, damage: float) -> None:
-        """Apply base damage for an enemy that reaches the endpoint."""
-        if damage < 0:
-            raise ValueError("Leak damage cannot be negative.")
+        """Record endpoint arrivals; King health is the authoritative objective."""
+        if not math.isfinite(damage) or damage < 0:
+            raise ValueError("Leak damage must be finite and non-negative.")
 
         if self.is_terminal:
             return
 
         self.enemies_leaked += 1
         self.total_leak_damage += damage
-        self.base_health = max(0.0, self.base_health - damage)
 
-        if self.base_health <= 0:
+    def mark_lost(self) -> None:
+        if not self.is_terminal:
             self.status = GameStatus.LOST
 
     def mark_won(self) -> None:

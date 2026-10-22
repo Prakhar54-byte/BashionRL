@@ -12,7 +12,7 @@ def manifest(env):
     config.pop("difficulties")
     config = json.loads(json.dumps(config, default=lambda path: str(path.relative_to(PROJECT_ROOT))))
     return {
-        "schema": 2,
+        "schema": 3,
         "config": config,
         "map_sha256": hashlib.sha256(sim.config.pathway_path.read_bytes()).hexdigest(),
         "slots": [slot.slot_id for slot in sim.defense_slots.slots],

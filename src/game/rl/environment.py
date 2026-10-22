@@ -83,7 +83,7 @@ class BastionEnv(gym.Env):
         self.steps += 1
         terms = {
             "kills": 0.1 * (sim.state.enemies_killed - previous[0]),
-            "base_damage": -(previous[1] - sim.state.base_health) / 10.0,
+            "base_damage": -max(0.0, previous[1] - sim.state.base_health) / 10.0,
             "waves": float(sim.waves_completed - previous[2]),
             "outcome": 20.0 if sim.state.status == GameStatus.WON else (
                 -20.0 if sim.state.status == GameStatus.LOST else 0.0
@@ -130,7 +130,7 @@ class BastionEnv(gym.Env):
                 1.0, enemy.position.x / sim.pathway.map_width,
                 enemy.position.y / sim.pathway.map_height, enemy.health / 100.0,
                 (sim.enemy_types.index(enemy.enemy_type) + 1) / len(sim.enemy_types),
-                travelled / self.route_length,
+                min(1.0, travelled / self.route_length),
             ])
         rows.sort(key=lambda row: row[5], reverse=True)
         enemies = np.zeros((self.max_enemies, 6), dtype=np.float32)
@@ -151,5 +151,7 @@ class BastionEnv(gym.Env):
             "kills": sim.state.enemies_killed, "leaks": sim.state.enemies_leaked,
             "resources": sim.state.resource_balance,
             "spent": sim.state.resources.total_spent,
+            "king_towers_alive": sum(king.alive for king in sim.king_towers),
+            "resource_towers_alive": sum(tower.alive for tower in sim.resource_towers),
             **{f"reward_{name}": value for name, value in self.reward_totals.items()},
         }

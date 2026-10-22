@@ -17,6 +17,7 @@ pathway = "Assets/Maps/map1.tmj"
 [assets.enemies]
 enemy1 = "Assets/Main/Entities/Enemies/enemy1.png"
 enemy2 = "Assets/Main/Entities/Enemies/enemy2.png"
+tank = "Assets/Main/Entities/Enemies/enemy2.png"
 
 [assets.defense]
 slot = "Assets/Main/Entities/Defense/slot.png"
@@ -28,12 +29,60 @@ name = "Walking Soldier"
 speed = 90.0
 max_health = 100.0
 kill_reward = 25
+attack_damage = 10.0
+attack_interval = 1.0
+attack_range = 85.0
 
 [enemies.enemy2]
 name = "Advanced Soldier"
 speed = 110.0
 max_health = 180.0
 kill_reward = 40
+attack_damage = 15.0
+attack_interval = 0.8
+attack_range = 85.0
+
+[enemies.tank]
+name = "Tank"
+kind = "tank"
+speed = 65.0
+max_health = 300.0
+kill_reward = 60
+attack_damage = 25.0
+attack_interval = 2.0
+attack_range = 180.0
+projectile_speed = 250.0
+
+[combat]
+target_priority = ["defense", "resource", "king"]
+
+[[king_towers]]
+structure_id = "king1"
+position = [930, 430]
+max_health = 500.0
+repair_cost = 100
+repair_duration = 5.0
+
+[[king_towers]]
+structure_id = "king2"
+position = [930, 465]
+max_health = 500.0
+repair_cost = 100
+repair_duration = 5.0
+
+[[king_towers]]
+structure_id = "king3"
+position = [930, 500]
+max_health = 500.0
+repair_cost = 100
+repair_duration = 5.0
+
+[[resource_towers]]
+structure_id = "resource1"
+position = [620, 326]
+max_health = 200.0
+production_amount = 10
+production_interval = 5.0
 
 [towers.cannon]
 name = "Cannon"

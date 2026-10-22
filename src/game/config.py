@@ -12,7 +12,6 @@ from src.game.entities.king_tower import KingTower
 from src.game.entities.resource_tower import ResourceTower
 from src.game.systems.wave_director import WaveConfig
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = PROJECT_ROOT / "configs" / "game.toml"
 
@@ -279,7 +278,7 @@ class GameConfig:
         structures = [KingTower(**values) for values in self.king_towers]
         structures.extend(ResourceTower(**values) for values in self.resource_towers)
         ids = [structure.structure_id for structure in structures]
-        if len(ids) != len(set(ids)) or any(value.startswith("defense:") for value in ids):
+        if len(ids) != len(set(ids)) or any(str(value).startswith("defense:") for value in ids):
             raise ValueError("Structure IDs must be unique and cannot use the defense: prefix.")
         if len(self.target_priority) != 3 or set(self.target_priority) != {"defense", "resource", "king"}:
             raise ValueError("Target priority must contain defense, resource, and king exactly once.")
@@ -309,7 +308,7 @@ def _parse_enemy_assets(
             continue
 
         if not isinstance(asset_data, dict):
-            raise ValueError(
+            raise TypeError(
                 f"Assets for enemy '{enemy_name}' must be a path "
                 "or a table containing sprite or base/gun paths."
             )
@@ -353,7 +352,7 @@ def _parse_resource_tower_config(
 ) -> ResourceTowerConfig:
     """Parse resource tower settings while applying defaults to omitted keys."""
     if not isinstance(values, dict):
-        raise ValueError(
+        raise TypeError(
             "The [resource_tower] configuration must be a TOML table."
         )
 
@@ -399,7 +398,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
     king_assets = assets.get("king")
 
     if not isinstance(king_assets, dict):
-        raise ValueError(
+        raise TypeError(
             "Missing [assets.king] configuration in game.toml."
         )
 
@@ -417,7 +416,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
     resource_assets = assets.get("resource_tower", {})
 
     if not isinstance(resource_assets, dict):
-        raise ValueError(
+        raise TypeError(
             "[assets.resource_tower] must be a TOML table."
         )
 
@@ -519,30 +518,6 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
         rows=grid["rows"],
         cols=grid["cols"],
         tile_size=grid["tile_size"],
-        map_path=(PROJECT_ROOT / map_assets["path"]).resolve(),
-        pathway_path=(PROJECT_ROOT / map_assets["pathway"]).resolve(),
-        enemy_assets={
-            name: (PROJECT_ROOT / asset_path).resolve()
-            for name, asset_path in enemy_assets.items()
-        },
-        defense_slot_path=(PROJECT_ROOT / defense_assets["slot"]).resolve(),
-        defense_assets={
-            name: (PROJECT_ROOT / asset_path).resolve()
-            for name, asset_path in defense_assets.items()
-            if name != "slot"
-        },
-        enemies={name: EnemyConfig(**values) for name, values in data["enemies"].items()},
-        towers={name: TowerConfig(**values) for name, values in data["towers"].items()},
-        difficulties={
-            name: DifficultyConfig(
-                max_waves=values["max_waves"],
-                base_health=values["base_health"],
-                starting_resources=values["starting_resources"],
-                waves=WaveConfig(**values["waves"]),
-                enemy_health_growth=values.get("enemy_health_growth", 0.0),
-            )
-            for name, values in data["difficulty"].items()
-        },
         king_towers=tuple(data["king_towers"]),
         resource_towers=tuple(data.get("resource_towers", [])),
         target_priority=tuple(data["combat"]["target_priority"]),

@@ -20,8 +20,8 @@ in the simulation.
 - Projectiles hit once. Dead or removed targets invalidate a shot before impact.
   Destroyed defenses clear their shots, and dead enemies' pending shots leave
   play with their owner. The simulation stops processing immediately on defeat.
-- Tanks currently reuse the Advanced Soldier sprite, with a drawn gun/projectile
-  cue; no new artwork is required.
+- Light and Heavy Tanks use the map update’s separate chassis and gun sprites;
+  the gun aims at its structure target independently of the chassis.
 
 ## Structures and resources
 
@@ -33,8 +33,12 @@ in the simulation.
 - Configured resource towers produce the configured amount after each interval.
   They return production to the simulation for credit, and stop immediately on
   destruction, including when damage occurs on the same tick as production.
-- King/resource towers are configured at fixed positions and reset each episode.
-  Health bars show damage; ruined King/resource structures remain visible in gray.
+- Initial King/resource towers use configured positions and reset each episode.
+  The supplied King positions match the current Tiled map. Additional resource
+  towers can be purchased on the map’s resource slots with E and a click;
+  their slots become available again on destruction.
+  Health bars show damage; ruined King/resource structures remain visible
+  and dimmed.
   Removed defenses expose the empty slot. All structure drawing APIs also handle
   direct drawing of a destroyed structure.
 
@@ -77,8 +81,10 @@ King objective. King HP comes from each `[[king_towers]]` entry.
 
 ## Compatibility and checks
 
-The new combat rules, tank type encoding, and objective require checkpoint schema
-3 and retraining. Existing checkpoint files are preserved; new run commands use
+The new combat rules, four enemy types, and objective require checkpoint schema
+3 and retraining. The current map has 46 defense slots, 93 actions, and 622
+observations; models trained on the old map are rejected by the metadata check.
+Existing checkpoint files are preserved; new run commands use
 `runs/baseline-v3` and `runs/smoke-v3`.
 
 Tests cover damage on all structure types, sticky priority/ties, cooldowns,

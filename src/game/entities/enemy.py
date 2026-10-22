@@ -66,9 +66,6 @@ class EnemyConfig:
             raise ValueError("Enemy movement, health, and combat values must be finite and positive.")
         if not math.isfinite(self.leak_damage):
             raise ValueError("Leak damage must be finite.")
-            raise ValueError(
-                "Kill reward must be a non-negative integer."
-            )
 
 
 class Enemy:
@@ -122,8 +119,6 @@ class Enemy:
 
         # Source sprites face East (right).
         self.direction = pygame.Vector2(1, 0)
-        self._draw_key = None
-        self._draw_sprite = None
         self.target = None
         self.attack_cooldown = 0.0
         self.projectiles: list[Projectile] = []
@@ -204,12 +199,13 @@ class Enemy:
         if self.target not in valid:
             self.target = min(valid, key=lambda structure: (
                 target_priority.index(structure.structure_kind),
-                self.position.distance_squared_to(structure.position), structure.structure_id,
+                self.position.distance_squared_to(structure.position), str(structure.structure_id),
             ), default=None)
         if self.target is not None:
             offset = self.target.position - self.position
             if offset.length_squared() > 0:
                 self.gun_direction = offset.normalize()
+                self.aim_at(self.target.position)
             if self.attack_cooldown <= 1e-9:
                 if self.config.kind == "tank":
                     self.projectiles.append(Projectile(self.position, self.target,
@@ -221,7 +217,7 @@ class Enemy:
         if self.reached_end:
             kings = [structure for structure in structures if structure.alive and structure.structure_kind == "king"]
             target = min(kings, key=lambda structure: (
-                self.position.distance_squared_to(structure.position), structure.structure_id,
+                self.position.distance_squared_to(structure.position), str(structure.structure_id),
             ), default=None)
             if target is not None:
                 offset = target.position - self.position
@@ -229,9 +225,7 @@ class Enemy:
                     self.direction = offset.normalize()
                     self.position += self.direction * min(self.speed * delta_time,
                                                           max(0.0, offset.length() - self.config.attack_range))
-            raise ValueError(
-                "Delta time must be finite and non-negative."
-            )
+            return
 
         if not self.alive or self.reached_end:
             return
@@ -272,9 +266,6 @@ class Enemy:
         """Apply damage and mark the enemy dead when health reaches zero."""
         if not math.isfinite(amount) or amount < 0:
             raise ValueError("Damage must be finite and non-negative.")
-            raise ValueError(
-                "Damage must be finite and non-negative."
-            )
 
         if not self.alive:
             return
@@ -343,10 +334,8 @@ class Enemy:
         return rendered_sprite
 
     def draw(self, surface: pygame.Surface) -> None:
-        """Render the enemy facing its movement direction."""
-        if not self.alive:
         """Render the enemy or the separate layers of a tank."""
-        if not self.alive or self.reached_end:
+        if not self.alive:
             return
 
         if self.pathway.map_width <= 0 or self.pathway.map_height <= 0:
@@ -360,14 +349,6 @@ class Enemy:
             round(self.position.y * scale_y),
         )
 
-        sprite_rect = scaled_sprite.get_rect(center=(round(screen_x), round(screen_y)))
-        surface.blit(scaled_sprite, sprite_rect)
-        if self.config.kind == "tank":
-            pygame.draw.line(surface, (30, 35, 35), sprite_rect.center,
-                             (round(screen_x + self.gun_direction.x * 30 * scale_x),
-                              round(screen_y + self.gun_direction.y * 30 * scale_y)), 5)
-        for projectile in self.projectiles:
-            projectile.draw(surface, self.pathway.map_width, self.pathway.map_height)
         chassis_angle = self._direction_angle(self.direction)
 
         if self.is_tank:
@@ -426,6 +407,9 @@ class Enemy:
 
             sprite_top = sprite_rect.top
             sprite_width = sprite_rect.width
+
+        for projectile in self.projectiles:
+            projectile.draw(surface, self.pathway.map_width, self.pathway.map_height)
 
         self._draw_health_bar(
             surface,

@@ -91,7 +91,7 @@ def test_tank_projectile_travels_hits_once_and_obeys_cooldown(sim, kind):
         sim.place_tower(0, "cannon")
     target = {"defense": sim.towers, "resource": sim.resource_towers,
               "king": sim.king_towers}[kind][0]
-    sim._spawn_enemy("tank")
+    sim._spawn_enemy("light_tank")
     tank = sim.enemies[0]
     tank.position = target.position - pygame.Vector2(100, 0)
     position = tank.position.copy()
@@ -111,7 +111,7 @@ def test_tank_projectile_travels_hits_once_and_obeys_cooldown(sim, kind):
 @pytest.mark.parametrize("remove", [False, True])
 def test_projectiles_discard_destroyed_or_removed_targets(sim, remove):
     target = sim.resource_towers[0]
-    sim._spawn_enemy("tank")
+    sim._spawn_enemy("light_tank")
     tank = sim.enemies[0]
     tank.position = target.position - pygame.Vector2(100, 0)
     sim.tick()
@@ -141,7 +141,7 @@ def test_destroyed_defense_stops_firing_and_clears_projectiles(sim):
 
 def test_resource_production_stops_on_destruction_before_credit(sim):
     tower = sim.resource_towers[0]
-    tower.cooldown = sim.timestep
+    tower._production_elapsed = tower.production_interval - sim.timestep
     sim._spawn_enemy("enemy1")
     enemy = sim.enemies[0]
     enemy.position = tower.position.copy()
@@ -332,7 +332,7 @@ def test_combat_is_reproducible_with_a_fixed_seed():
     first, second = Simulation(seed=23), Simulation(seed=23)
     for sim in (first, second):
         sim.place_tower(0, "cannon")
-        sim._spawn_enemy("tank")
+        sim._spawn_enemy("light_tank")
         sim.enemies[0].position = sim.resource_towers[0].position - pygame.Vector2(100, 0)
         sim.advance(20)
     assert first.state == second.state

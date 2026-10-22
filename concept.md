@@ -29,10 +29,10 @@ training samples actions stochastically, but adds no explicit entropy bonus.
 
 ### Decisions and rewards
 
-There are **63 discrete actions** for the supplied map:
+There are **93 discrete actions** for the supplied map:
 
 - Action `0`: wait.
-- Actions `1` through `62`: choose one of 31 slots and one of two towers.
+- Actions `1` through `92`: choose one of 46 slots and one of two towers.
 - Encoding: `1 + slot_index * 2 + tower_index`.
 - Tower index `0` is Cannon; index `1` is Double Cannon in the current TOML order.
 - Slots use ascending Tiled object IDs, rather than the IDs themselves as indices.
@@ -72,8 +72,11 @@ without either outcome is time-limit truncation, without an extra win/loss rewar
 Both require a reset. Training, evaluation, and model viewing expose `--max-steps`.
 The default `baseline` uses original wave settings with no added enemy HP growth;
 `medium` and `hard` are optional balance experiments, not baseline requirements.
-Combat/objective schema 3 requires retraining previous checkpoints. Tanks reuse
-the Advanced Soldier sprite with a separately aimed gun and projectile attacks.
+Combat/objective schema 3 requires retraining previous checkpoints.
+The larger map changes slot counts and checkpoint metadata, so old-map models
+also require retraining; incompatible checkpoints are rejected. Light and Heavy
+Tanks use separate chassis and gun sprites, with projectile attacks.
+Enemies follow seeded routes from the soldier or tank route family.
 King repairs are simulation/manual controls, not additional RL actions.
 
 Implementation: `src/game/rl/__main__.py` and `src/game/rl/environment.py`.
@@ -82,12 +85,12 @@ Algorithm reference: [Maskable PPO documentation](https://sb3-contrib.readthedoc
 ## 2. States / observations
 
 The simulator holds the complete internal game state. The policy receives a
-fixed **547-element float32 observation vector** for the supplied map:
+fixed **622-element float32 observation vector** for the supplied map:
 
 ```text
-8 global values + 31 slots × 5 values + 64 padded enemy rows × 6 values
-= 8 + 155 + 384
-= 547
+8 global values + 46 slots × 5 values + 64 padded enemy rows × 6 values
+= 8 + 230 + 384
+= 622
 ```
 
 ### Global values: indices 0–7
@@ -108,9 +111,9 @@ clipped, and money or other scaled quantities can exceed 1. Timers are raw
 seconds. Wave-director phase rules determine when each countdown is active;
 the stored intermission timer does not always mean preparation is underway.
 
-### Slot values: indices 8–162
+### Slot values: indices 8–237
 
-Each of the 31 slots contributes these five values in ascending slot-ID order:
+Each of the 46 slots contributes these five values in ascending slot-ID order:
 
 | Position within each slot | Value sent to the agent |
 |---|---|
@@ -124,7 +127,7 @@ These values describe where a tower can be placed, existing defenses, and their
 firing readiness. The five-value block for slot index `i` starts at `8 + 5*i`.
 Tower costs, ranges, and damage are fixed game configuration, not extra inputs.
 
-### Padded enemy values: indices 163–546
+### Padded enemy values: indices 238–621
 
 Every active enemy has an individual row; unused rows are entirely zero.
 There are 64 rows, with six float32 values per row:
@@ -135,10 +138,10 @@ There are 64 rows, with six float32 values per row:
 | 1 | Current X position / map width. |
 | 2 | Current Y position / map height. |
 | 3 | Current individual health / 100; values can exceed 1. |
-| 4 | Enemy type: 1/3 for Walking Soldier, 2/3 for Advanced Soldier, 1 for Tank. |
-| 5 | Distance travelled along the pathway / total pathway length. |
+| 4 | Enemy type: 1/4 for Walking Soldier, 2/4 for Advanced Soldier, 3/4 for Light Tank, 1 for Heavy Tank. |
+| 5 | Distance travelled along the enemy’s assigned route / that route’s total length. |
 
-Sort enemies by descending route progress: closest to the base first. Equal
+Sort enemies by descending relative progress along their assigned routes. Equal
 progress retains spawn order. Keep the first 64 rows if capacity is exceeded,
 report the excess in `info["enemies_omitted"]`, and continue simulating all enemies.
 The supplied presets spawn at most 34 enemies in a wave, below this capacity.
@@ -154,8 +157,8 @@ Capacity overflow can also omit enemies. Consequently, it remains partially
 observed: different internal situations can produce the same observation.
 The current MLP has no recurrent memory.
 
-The separate 63-element Boolean action mask identifies currently legal actions;
-it is not part of the 547-element observation. Diagnostic `info` fields such as
+The separate 93-element Boolean action mask identifies currently legal actions;
+it is not part of the 622-element observation. Diagnostic `info` fields such as
 success, total kills, leaks, spending, and reward totals are not additional
 policy inputs.
 

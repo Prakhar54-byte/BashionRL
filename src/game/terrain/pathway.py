@@ -140,9 +140,7 @@ class Pathway:
 
                 is_route = (
                     normalized_name == "pathway"
-                    or normalized_name.startswith("pathway_")
-                    or normalized_name.startswith("soldier_path")
-                    or normalized_name.startswith("tank_path")
+                    or normalized_name.startswith(("pathway_", "soldier_path", "tank_path"))
                 )
 
                 if not is_route:

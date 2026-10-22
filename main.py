@@ -107,7 +107,7 @@ def draw_hud(
     alive_enemies = sum(
         1
         for enemy in simulation.enemies
-        if enemy.alive and not enemy.reached_end
+        if enemy.alive
     )
 
     living_kings = [
@@ -145,7 +145,7 @@ def draw_hud(
 
     status_lines = [
         (
-            f"Base HP (legacy): "
+            f"Combined King HP: "
             f"{state.base_health:.0f}/{state.max_base_health:.0f}"
         ),
         f"Resources: {state.resource_balance}",
@@ -551,8 +551,6 @@ def main() -> None:
             terrain_renderer.render(screen)
 
             defense_slots.draw(screen, show_ids=False)
-            for structure in [*simulation.resource_towers, *simulation.king_towers]:
-                structure.draw(screen, pathway.map_width, pathway.map_height)
             draw_resource_slots(screen, simulation)
 
             for tower in towers:
@@ -562,43 +560,6 @@ def main() -> None:
                     map_height=pathway.map_height,
                 )
 
-            for enemy in enemies:
-                enemy.draw(screen)
-
-            health_fraction = game_state.base_health / game_state.max_base_health
-
-            selected_tower_config = tower_configs[selected_defense]
-
-            status_lines = [
-                (
-                    f"King HP: {game_state.base_health:.0f}/"
-                    f"{game_state.max_base_health:.0f}"
-                ),
-                f"Resources: {game_state.resource_balance}",
-                f"Wave: {wave_director.wave_number}/{simulation.balance.max_waves} | {args.difficulty}",
-                (f"Enemies alive: {sum(1 for enemy in enemies if enemy.alive)}"),
-                (f"Waiting to spawn: {wave_director.enemies_remaining_to_spawn}"),
-                f"Total spawned: {game_state.enemies_spawned}",
-                (
-                    f"Kills: {game_state.enemies_killed} | "
-                    f"Leaks: {game_state.enemies_leaked}"
-                ),
-                f"Selected tower: {selected_tower_config.name}",
-                f"Tower cost: {selected_tower_config.cost}",
-                "AI spectator" if model else "Q/W: Select tower | Click slot: Place",
-                "R: Reset | ESC: Quit",
-                f"Kings alive: {sum(king.alive for king in simulation.king_towers)} | 1-9: Repair King",
-            ]
-
-            hud_width = 440
-            hud_height = len(status_lines) * 25 + 12
-
-            hud_surface = pygame.Surface(
-                (hud_width, hud_height),
-                pygame.SRCALPHA,
-            )
-            hud_surface.fill((15, 18, 22, 200))
-            screen.blit(hud_surface, (8, 8))
             for tower in resource_towers:
                 tower.draw(
                     screen,
@@ -627,42 +588,6 @@ def main() -> None:
             )
 
             if game_state.is_terminal or ai_finished:
-                overlay = pygame.Surface(
-                    screen.get_size(),
-                    pygame.SRCALPHA,
-                )
-                overlay.fill((0, 0, 0, 170))
-                screen.blit(overlay, (0, 0))
-
-                title = large_font.render(
-                    ("VICTORY" if game_state.status == GameStatus.WON else
-                     "KINGS DESTROYED" if game_state.status == GameStatus.LOST else "TIME LIMIT"),
-                    True,
-                    (255, 80, 80),
-                )
-                subtitle = font.render(
-                    "Press R to restart or ESC to quit",
-                    True,
-                    (255, 255, 255),
-                )
-
-                screen.blit(
-                    title,
-                    title.get_rect(
-                        center=(
-                            screen.get_width() // 2,
-                            screen.get_height() // 2 - 25,
-                        )
-                    ),
-                )
-                screen.blit(
-                    subtitle,
-                    subtitle.get_rect(
-                        center=(
-                            screen.get_width() // 2,
-                            screen.get_height() // 2 + 25,
-                        )
-                    ),
                 draw_terminal_overlay(
                     screen,
                     font,

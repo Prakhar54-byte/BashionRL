@@ -1,4 +1,5 @@
 import math
+from copy import copy
 from unittest.mock import Mock
 
 import pygame
@@ -26,6 +27,7 @@ def test_tower_cache_preserves_pixels_and_refreshes_on_resize(
     original_scale = pygame.transform.smoothscale
     scale = Mock(wraps=original_scale)
     monkeypatch.setattr(pygame.transform, "smoothscale", scale)
+
     for size, angle in [
         ((960, 640), 0),
         ((960, 640), 45),
@@ -35,27 +37,28 @@ def test_tower_cache_preserves_pixels_and_refreshes_on_resize(
         tower.angle = angle
         actual = pygame.Surface(size, pygame.SRCALPHA)
         expected = pygame.Surface(size, pygame.SRCALPHA)
-        sx, sy = size[0] / sim.pathway.map_width, size[1] / sim.pathway.map_height
-        scaled = original_scale(
-            tower.sprite,
-            (
-                round(tower.sprite.get_width() * tower.size_scale * sx),
-                round(tower.sprite.get_height() * tower.size_scale * sy),
-            ),
-        )
-        rotated = pygame.transform.rotate(scaled, angle)
-        expected.blit(
-            rotated,
-            rotated.get_rect(
-                center=(round(tower.position.x * sx), round(tower.position.y * sy))
-            ),
-        )
         tower.draw(actual, sim.pathway.map_width, sim.pathway.map_height)
+
+        # Render an uncached copy as the reference. This includes the stationary
+        # base and health bar added to the current tower renderer.
+        reference = copy(tower)
+        reference._scaled_sprite = None
+        reference._scaled_sprite_size = None
+        reference._rotated_sprite = None
+        reference._draw_angle = None
+        reference._scaled_base_sprite = None
+        reference._scaled_base_size = None
+
+        monkeypatch.setattr(pygame.transform, "smoothscale", original_scale)
+        reference.draw(expected, sim.pathway.map_width, sim.pathway.map_height)
+        monkeypatch.setattr(pygame.transform, "smoothscale", scale)
+
         assert pygame.image.tobytes(actual, "RGBA") == pygame.image.tobytes(
             expected, "RGBA"
         )
-    assert scale.call_count == 2
 
+    # Initial draw and resize each scale the base and barrel once.
+    assert scale.call_count == 4
 
 def test_enemy_cache_preserves_pixels_and_refreshes_on_turns(
     rendered_simulation, monkeypatch

@@ -193,7 +193,7 @@ class BastionEnv(gym.Env):
             "waves_completed": sim.waves_completed,
             "base_health": sim.state.base_health,
             "waves_reached": sim.director.wave_number,
-            "survived": sim.state.base_health > 0,
+            "survived": sim.state.status != GameStatus.LOST,
             "enemies_omitted": max(0, len(sim.enemies) - self.max_enemies),
             "kills": sim.state.enemies_killed,
             "leaks": sim.state.enemies_leaked,

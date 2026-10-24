@@ -5,7 +5,6 @@ from typing import TypeAlias
 
 import pygame
 
-
 StructureId: TypeAlias = int | str
 
 
@@ -44,13 +43,8 @@ class Structure:
                     "Structure position must contain valid x and y coordinates."
                 ) from exc
 
-        if not (
-            math.isfinite(position.x)
-            and math.isfinite(position.y)
-        ):
-            raise ValueError(
-                "Structure position coordinates must be finite."
-            )
+        if not (math.isfinite(position.x) and math.isfinite(position.y)):
+            raise ValueError("Structure position coordinates must be finite.")
 
         if (
             isinstance(max_health, bool)
@@ -58,9 +52,7 @@ class Structure:
             or not math.isfinite(max_health)
             or max_health <= 0
         ):
-            raise ValueError(
-                "Maximum health must be finite and positive."
-            )
+            raise ValueError("Maximum health must be finite and positive.")
 
         self.structure_id = structure_id
         self.position = position.copy()
@@ -74,9 +66,7 @@ class Structure:
     ) -> None:
         """Validate a structure's identifier."""
         if isinstance(structure_id, bool):
-            raise TypeError(
-                "Structure ID must be a non-empty string or integer."
-            )
+            raise TypeError("Structure ID must be a non-empty string or integer.")
 
         if isinstance(structure_id, int):
             return
@@ -84,9 +74,7 @@ class Structure:
         if isinstance(structure_id, str) and structure_id.strip():
             return
 
-        raise ValueError(
-            "Structure ID must be a non-empty string or integer."
-        )
+        raise ValueError("Structure ID must be a non-empty string or integer.")
 
     @property
     def health(self) -> float:
@@ -157,15 +145,11 @@ class Structure:
         label: str,
     ) -> None:
         """Ensure damage and health restoration amounts are valid."""
-        if isinstance(amount, bool) or not isinstance(
-            amount, (int, float)
-        ):
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)):
             raise TypeError(f"{label} must be numeric.")
 
         if not math.isfinite(amount) or amount < 0:
-            raise ValueError(
-                f"{label} must be finite and non-negative."
-            )
+            raise ValueError(f"{label} must be finite and non-negative.")
 
     def __repr__(self) -> str:
         """Return a concise representation useful for debugging."""

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import argparse
@@ -113,8 +112,7 @@ def draw_hud(
     screen_width, screen_height = screen.get_size()
 
     alive_enemies = sum(
-        1 for enemy in simulation.enemies
-        if enemy.alive and not enemy.reached_end
+        1 for enemy in simulation.enemies if enemy.alive and not enemy.reached_end
     )
     living_kings = [tower for tower in simulation.king_towers if tower.alive]
     king_hp = sum(max(0.0, tower.health) for tower in simulation.king_towers)
@@ -148,11 +146,19 @@ def draw_hud(
 
     stats = [
         ("COINS", f"{state.resource_balance}", (238, 199, 92)),
-        ("WAVE", f"{director.wave_number}/{simulation.balance.max_waves}", (130, 195, 255)),
+        (
+            "WAVE",
+            f"{director.wave_number}/{simulation.balance.max_waves}",
+            (130, 195, 255),
+        ),
         ("ENEMIES", str(alive_enemies), (255, 150, 130)),
         ("SPAWNING", str(director.enemies_remaining_to_spawn), (238, 184, 112)),
         ("KILLS", str(state.enemies_killed), (145, 220, 155)),
-        ("KINGS", f"{len(living_kings)}/{len(simulation.king_towers)}", (155, 205, 255)),
+        (
+            "KINGS",
+            f"{len(living_kings)}/{len(simulation.king_towers)}",
+            (155, 205, 255),
+        ),
         ("KING HP", f"{king_hp:.0f}/{king_max_hp:.0f}", (220, 220, 235)),
         ("MODE", difficulty.upper(), (205, 180, 255)),
     ]
@@ -189,9 +195,11 @@ def draw_hud(
     panel.fill((10, 15, 22, 190))
     screen.blit(panel, (panel_x, panel_y))
     pygame.draw.rect(
-        screen, (87, 105, 125, 220),
+        screen,
+        (87, 105, 125, 220),
         pygame.Rect(panel_x, panel_y, panel_width, panel_height),
-        width=1, border_radius=10,
+        width=1,
+        border_radius=10,
     )
 
     for row_index, row in enumerate(rows):
@@ -199,11 +207,11 @@ def draw_hud(
         chip_y = panel_y + 8 + row_index * (chip_height + 5)
         for text_surface, chip_width, accent in row:
             chip_rect = pygame.Rect(chip_x, chip_y, chip_width, chip_height)
+            pygame.draw.rect(screen, (31, 40, 51), chip_rect, border_radius=6)
             pygame.draw.rect(
-                screen, (31, 40, 51), chip_rect, border_radius=6
-            )
-            pygame.draw.rect(
-                screen, accent, (chip_x, chip_y + 5, 3, chip_height - 10),
+                screen,
+                accent,
+                (chip_x, chip_y + 5, 3, chip_height - 10),
                 border_radius=2,
             )
             screen.blit(
@@ -235,14 +243,20 @@ def draw_hud(
     dock.fill((10, 15, 22, 205))
     screen.blit(dock, (dock_x, dock_y))
     pygame.draw.rect(
-        screen, (87, 105, 125),
+        screen,
+        (87, 105, 125),
         pygame.Rect(dock_x, dock_y, dock_width, dock_height),
-        width=1, border_radius=10,
+        width=1,
+        border_radius=10,
     )
 
     if ai_mode:
         title = font.render("AI SPECTATOR", True, (150, 205, 255))
-        detail = font.render("Watching the trained agent  ·  R restart  ·  ESC quit", True, (225, 230, 238))
+        detail = font.render(
+            "Watching the trained agent  ·  R restart  ·  ESC quit",
+            True,
+            (225, 230, 238),
+        )
         screen.blit(title, (dock_x + 12, dock_y + 9))
         if detail.get_width() > dock_width - 24:
             detail = pygame.transform.smoothscale(
@@ -251,7 +265,9 @@ def draw_hud(
         screen.blit(detail, (dock_x + 12, dock_y + 32))
         return
 
-    mode_label = "RESOURCE TOWER" if selected_mode == "resource" else selected_name.upper()
+    mode_label = (
+        "RESOURCE TOWER" if selected_mode == "resource" else selected_name.upper()
+    )
     title = font.render(
         f"BUILD: {mode_label}  ·  {selected_cost} COINS",
         True,
@@ -318,8 +334,11 @@ def draw_wave_countdown_ui(
     panel_surface.fill((17, 23, 32, 215))
     screen.blit(panel_surface, panel.topleft)
     pygame.draw.rect(
-        screen, (218, 177, 80), panel,
-        width=1, border_radius=10,
+        screen,
+        (218, 177, 80),
+        panel,
+        width=1,
+        border_radius=10,
     )
 
     title_text = f"PREPARE FOR WAVE {next_wave}"
@@ -405,7 +424,9 @@ def draw_terminal_overlay(
         )
     screen.blit(detail, detail.get_rect(center=(card.centerx, card.y + 103)))
 
-    subtitle = font.render("R  Restart episode     ·     ESC  Quit", True, (255, 255, 255))
+    subtitle = font.render(
+        "R  Restart episode     ·     ESC  Quit", True, (255, 255, 255)
+    )
     screen.blit(subtitle, subtitle.get_rect(center=(card.centerx, card.y + 151)))
 
 
@@ -434,9 +455,7 @@ def _handle_world_click(
             round(map_x),
             round(map_y),
         ):
-            simulation.start_king_tower_repair(
-                king_tower.structure_id
-            )
+            simulation.start_king_tower_repair(king_tower.structure_id)
             return
 
         hit_radius = 40.0
@@ -445,22 +464,16 @@ def _handle_world_click(
             click_position.distance_squared_to(king_tower.position)
             <= hit_radius * hit_radius
         ):
-            simulation.start_king_tower_repair(
-                king_tower.structure_id
-            )
+            simulation.start_king_tower_repair(king_tower.structure_id)
             return
 
     if selected_mode == "resource":
-        for slot_index, slot in enumerate(
-            simulation.resource_slots.slots
-        ):
+        for slot_index, slot in enumerate(simulation.resource_slots.slots):
             if slot.rect.collidepoint(round(map_x), round(map_y)):
                 simulation.place_resource_tower(slot_index)
                 return
     else:
-        for slot_index, slot in enumerate(
-            simulation.defense_slots.slots
-        ):
+        for slot_index, slot in enumerate(simulation.defense_slots.slots):
             if slot.rect.collidepoint(round(map_x), round(map_y)):
                 simulation.place_tower(slot_index, selected_defense)
                 return
@@ -473,9 +486,7 @@ def main() -> None:
     pygame.init()
 
     try:
-        screen = pygame.display.set_mode(
-            (config.window_width, config.window_height)
-        )
+        screen = pygame.display.set_mode((config.window_width, config.window_height))
         pygame.display.set_caption(config.window_title)
 
         asset_loader = AssetLoader()
@@ -566,17 +577,11 @@ def main() -> None:
                         ai_step = None
                         ai_finished = False
 
-                    elif (
-                        event.key == pygame.K_q
-                        and "cannon" in defense_types
-                    ):
+                    elif event.key == pygame.K_q and "cannon" in defense_types:
                         selected_mode = "defense"
                         selected_defense = "cannon"
 
-                    elif (
-                        event.key == pygame.K_w
-                        and "double_cannon" in defense_types
-                    ):
+                    elif event.key == pygame.K_w and "double_cannon" in defense_types:
                         selected_mode = "defense"
                         selected_defense = "double_cannon"
 
@@ -592,16 +597,8 @@ def main() -> None:
                     mouse_x, mouse_y = event.pos
 
                     # Convert window coordinates into map coordinates.
-                    map_x = (
-                        mouse_x
-                        * pathway.map_width
-                        / screen.get_width()
-                    )
-                    map_y = (
-                        mouse_y
-                        * pathway.map_height
-                        / screen.get_height()
-                    )
+                    map_x = mouse_x * pathway.map_width / screen.get_width()
+                    map_y = mouse_y * pathway.map_height / screen.get_height()
 
                     _handle_world_click(
                         simulation,
@@ -614,17 +611,10 @@ def main() -> None:
             # ----------------------------------------------------------
             # Simulation / trained agent
             # ----------------------------------------------------------
-            if (
-                env is not None
-                and model is not None
-                and not ai_finished
-            ):
+            if env is not None and model is not None and not ai_finished:
                 ai_elapsed += delta_time
 
-                while (
-                    ai_elapsed + 1e-12 >= simulation.timestep
-                    and not ai_finished
-                ):
+                while ai_elapsed + 1e-12 >= simulation.timestep and not ai_finished:
                     ai_elapsed -= simulation.timestep
 
                     if ai_step is None:

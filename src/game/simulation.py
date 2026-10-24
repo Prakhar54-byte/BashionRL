@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import math
@@ -47,9 +46,7 @@ class Simulation:
             raise ValueError("At least one defense tower type is required.")
 
         if set(self.config.enemies) != set(self.config.enemy_assets):
-            raise ValueError(
-                "Enemy configurations must match enemy asset definitions."
-            )
+            raise ValueError("Enemy configurations must match enemy asset definitions.")
 
         if set(self.config.towers) != set(self.config.defense_assets):
             raise ValueError(
@@ -140,13 +137,8 @@ class Simulation:
     ) -> dict[str, Pathway]:
         """Normalize route-loader output into named pathways."""
         if isinstance(routes, Mapping):
-            normalized = {
-                str(name): pathway
-                for name, pathway in routes.items()
-            }
-        elif isinstance(routes, Sequence) and not isinstance(
-            routes, (str, bytes)
-        ):
+            normalized = {str(name): pathway for name, pathway in routes.items()}
+        elif isinstance(routes, Sequence) and not isinstance(routes, (str, bytes)):
             normalized = {}
 
             for index, pathway in enumerate(routes, start=1):
@@ -160,14 +152,10 @@ class Simulation:
 
         for name, pathway in normalized.items():
             if not isinstance(pathway, Pathway):
-                raise TypeError(
-                    f"Route '{name}' is not a Pathway instance."
-                )
+                raise TypeError(f"Route '{name}' is not a Pathway instance.")
 
             if len(pathway.points) < 2:
-                raise ValueError(
-                    f"Route '{name}' must contain at least two points."
-                )
+                raise ValueError(f"Route '{name}' must contain at least two points.")
 
         return normalized
 
@@ -202,9 +190,7 @@ class Simulation:
                 self.enemy_gun_sprites[enemy_type] = gun_sprite
             else:
                 if assets.sprite_path is None:
-                    raise ValueError(
-                        f"Enemy '{enemy_type}' requires a sprite asset."
-                    )
+                    raise ValueError(f"Enemy '{enemy_type}' requires a sprite asset.")
 
                 self.enemy_sprites[enemy_type] = (
                     loader.load_texture(assets.sprite_path)
@@ -213,11 +199,7 @@ class Simulation:
                 )
 
         self.tower_sprites = {
-            name: (
-                loader.load_texture(path)
-                if render_assets
-                else placeholder
-            )
+            name: (loader.load_texture(path) if render_assets else placeholder)
             for name, path in self.config.defense_assets.items()
         }
 
@@ -235,10 +217,7 @@ class Simulation:
 
         self.resource_tower_sprite = (
             loader.load_texture(self.config.resource_tower_sprite_path)
-            if (
-                render_assets
-                and self.config.resource_tower_sprite_path is not None
-            )
+            if (render_assets and self.config.resource_tower_sprite_path is not None)
             else None
         )
 
@@ -293,8 +272,6 @@ class Simulation:
         self.waves_completed = 0
         self.ticks = 0
         self._accumulator = 0.0
-
-
 
     # ------------------------------------------------------------------
     # Building placement
@@ -383,7 +360,6 @@ class Simulation:
 
         return True
 
-
     def _update_passive_income(self, delta_time: float) -> None:
         """Grant passive resources at the configured time interval."""
         self._passive_income_elapsed += delta_time
@@ -395,7 +371,6 @@ class Simulation:
         while self._passive_income_elapsed + 1e-12 >= interval:
             self.state.resources.earn(amount)
             self._passive_income_elapsed -= interval
-
 
     # ------------------------------------------------------------------
     # King Tower repair and state
@@ -459,10 +434,8 @@ class Simulation:
         config = self.config.enemies[enemy_type]
         asset_config = self.config.enemy_assets[enemy_type]
 
-        health_multiplier = (
-            1.0
-            + self.balance.enemy_health_growth
-            * max(0, self.director.wave_number - 1)
+        health_multiplier = 1.0 + self.balance.enemy_health_growth * max(
+            0, self.director.wave_number - 1
         )
 
         scaled_config = replace(
@@ -471,11 +444,7 @@ class Simulation:
         )
 
         # Each enemy uses the route family assigned to its asset definition.
-        routes = (
-            self.tank_routes
-            if asset_config.is_tank
-            else self.soldier_routes
-        )
+        routes = self.tank_routes if asset_config.is_tank else self.soldier_routes
 
         route_name = self._rng.choice(tuple(routes))
         pathway = routes[route_name]
@@ -485,9 +454,7 @@ class Simulation:
             gun_sprite = self.enemy_gun_sprites.get(enemy_type)
 
             if base_sprite is None or gun_sprite is None:
-                raise ValueError(
-                    f"Tank '{enemy_type}' is missing base or gun sprites."
-                )
+                raise ValueError(f"Tank '{enemy_type}' is missing base or gun sprites.")
 
             enemy: Enemy = Tank(
                 pathway=pathway,
@@ -508,7 +475,6 @@ class Simulation:
 
         self.enemies.append(enemy)
         self.state.register_spawn()
-
 
     # ------------------------------------------------------------------
     # Combat helpers
@@ -576,13 +542,10 @@ class Simulation:
 
         return True
 
-
     def _update_tank_combat(self) -> None:
         """Update tank attacks against all eligible tower types."""
         active_defense_towers = tuple(
-            tower
-            for tower in self.towers
-            if tower.alive and not tower.destroyed
+            tower for tower in self.towers if tower.alive and not tower.destroyed
         )
 
         active_resource_towers = tuple(
@@ -592,9 +555,7 @@ class Simulation:
         )
 
         active_king_towers = tuple(
-            tower
-            for tower in self.king_towers
-            if tower.alive and not tower.destroyed
+            tower for tower in self.king_towers if tower.alive and not tower.destroyed
         )
 
         for enemy in self.enemies:
@@ -613,22 +574,14 @@ class Simulation:
                 tower.update(self.timestep, self.enemies)
 
         # Free the slots of destroyed defense towers and remove them.
-        destroyed_slot_ids = {
-            tower.slot_id
-            for tower in self.towers
-            if tower.destroyed
-        }
+        destroyed_slot_ids = {tower.slot_id for tower in self.towers if tower.destroyed}
 
         if destroyed_slot_ids:
             for slot in self.defense_slots.slots:
                 if slot.slot_id in destroyed_slot_ids:
                     slot.occupied = False
 
-            self.towers[:] = [
-                tower
-                for tower in self.towers
-                if not tower.destroyed
-            ]
+            self.towers[:] = [tower for tower in self.towers if not tower.destroyed]
 
     def _update_resource_towers(self) -> None:
         """Generate income and remove destroyed Resource Towers."""
@@ -640,9 +593,7 @@ class Simulation:
                     self.state.resources.earn(earned)
 
         destroyed_slot_ids = {
-            tower.tower_id
-            for tower in self.resource_towers
-            if tower.destroyed
+            tower.tower_id for tower in self.resource_towers if tower.destroyed
         }
 
         if destroyed_slot_ids:
@@ -651,9 +602,7 @@ class Simulation:
                     slot.occupied = False
 
             self.resource_towers[:] = [
-                tower
-                for tower in self.resource_towers
-                if not tower.destroyed
+                tower for tower in self.resource_towers if not tower.destroyed
             ]
 
     def _update_king_towers(self) -> None:
@@ -674,11 +623,7 @@ class Simulation:
                 self.state.register_kill(enemy.config.kill_reward)
 
         # Route exits alone do not inflict global base damage.
-        self.enemies[:] = [
-            enemy
-            for enemy in self.enemies
-            if enemy.alive
-        ]
+        self.enemies[:] = [enemy for enemy in self.enemies if enemy.alive]
 
     # ------------------------------------------------------------------
     # Main simulation loop
@@ -742,9 +687,7 @@ class Simulation:
             or not math.isfinite(seconds)
             or seconds < 0
         ):
-            raise ValueError(
-                "Elapsed time must be finite and non-negative."
-            )
+            raise ValueError("Elapsed time must be finite and non-negative.")
 
         self._accumulator += seconds
 

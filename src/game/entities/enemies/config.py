@@ -60,6 +60,4 @@ class EnemyConfig:
             or not isinstance(self.kill_reward, int)
             or self.kill_reward < 0
         ):
-            raise ValueError(
-                "Kill reward must be a non-negative integer."
-            )
+            raise ValueError("Kill reward must be a non-negative integer.")

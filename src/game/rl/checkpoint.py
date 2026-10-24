@@ -10,7 +10,9 @@ def manifest(env):
     sim = env.simulation
     config = asdict(sim.config)
     config.pop("difficulties")
-    config = json.loads(json.dumps(config, default=lambda path: str(path.relative_to(PROJECT_ROOT))))
+    config = json.loads(
+        json.dumps(config, default=lambda path: str(path.relative_to(PROJECT_ROOT)))
+    )
     return {
         "schema": 2,
         "config": config,
@@ -28,10 +30,14 @@ def manifest(env):
 
 def save_metadata(path, env, *, seed, steps):
     path = Path(path)
-    data = {"environment": manifest(env), "training_difficulty": env.simulation.difficulty,
-            "training_seed": seed, "requested_steps": steps,
-            "training_max_steps": env.max_steps,
-            "training_balance": asdict(env.simulation.balance)}
+    data = {
+        "environment": manifest(env),
+        "training_difficulty": env.simulation.difficulty,
+        "training_seed": seed,
+        "requested_steps": steps,
+        "training_max_steps": env.max_steps,
+        "training_balance": asdict(env.simulation.balance),
+    }
     path.with_suffix(".json").write_text(json.dumps(data, indent=2) + "\n")
 
 
@@ -42,6 +48,8 @@ def load_model(path, env):
     path = Path(path)
     metadata = json.loads(path.with_suffix(".json").read_text())
     if metadata["environment"] != manifest(env):
-        raise ValueError("Checkpoint environment differs from the current map/config/schema.")
+        raise ValueError(
+            "Checkpoint environment differs from the current map/config/schema."
+        )
     torch.set_num_threads(1)
     return MaskablePPO.load(path, env=env, device="cpu")

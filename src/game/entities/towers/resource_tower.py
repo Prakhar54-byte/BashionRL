@@ -51,21 +51,13 @@ class ResourceTower(Structure):
             or not isinstance(production_amount, int)
             or production_amount <= 0
         ):
-            raise ValueError(
-                "Production amount must be a positive integer."
-            )
+            raise ValueError("Production amount must be a positive integer.")
 
         if sprite is not None and not isinstance(sprite, pygame.Surface):
-            raise TypeError(
-                "Resource tower sprite must be a pygame Surface or None."
-            )
+            raise TypeError("Resource tower sprite must be a pygame Surface or None.")
 
-        if sprite is not None and (
-            sprite.get_width() <= 0 or sprite.get_height() <= 0
-        ):
-            raise ValueError(
-                "Resource tower sprite must have valid dimensions."
-            )
+        if sprite is not None and (sprite.get_width() <= 0 or sprite.get_height() <= 0):
+            raise ValueError("Resource tower sprite must have valid dimensions.")
 
         super().__init__(
             structure_id=tower_id,
@@ -147,27 +139,21 @@ class ResourceTower(Structure):
             or not math.isfinite(delta_time)
             or delta_time < 0
         ):
-            raise ValueError(
-                "Delta time must be finite and non-negative."
-            )
+            raise ValueError("Delta time must be finite and non-negative.")
 
         if not self.alive or delta_time == 0:
             return 0
 
         self._production_elapsed += float(delta_time)
 
-        payouts = int(
-            (self._production_elapsed + 1e-12)
-            / self.production_interval
-        )
+        payouts = int((self._production_elapsed + 1e-12) / self.production_interval)
 
         if payouts <= 0:
             return 0
 
         self._production_elapsed = max(
             0.0,
-            self._production_elapsed
-            - payouts * self.production_interval,
+            self._production_elapsed - payouts * self.production_interval,
         )
 
         return payouts * self.production_amount
@@ -181,9 +167,7 @@ class ResourceTower(Structure):
     ) -> pygame.Surface:
         """Return a cached sprite scaled to the requested dimensions."""
         if self.sprite is None:
-            raise RuntimeError(
-                "Cannot scale a missing resource tower sprite."
-            )
+            raise RuntimeError("Cannot scale a missing resource tower sprite.")
 
         rendered = self._render_cache.get(target_size)
 
@@ -247,9 +231,7 @@ class ResourceTower(Structure):
             or map_width <= 0
             or map_height <= 0
         ):
-            raise ValueError(
-                "Map dimensions must be finite and positive."
-            )
+            raise ValueError("Map dimensions must be finite and positive.")
 
         scale_x = surface.get_width() / map_width
         scale_y = surface.get_height() / map_height
@@ -299,16 +281,8 @@ class ResourceTower(Structure):
                 height,
             )
 
-            body_color = (
-                (115, 105, 85)
-                if self.alive
-                else (65, 65, 65)
-            )
-            roof_color = (
-                (190, 145, 45)
-                if self.alive
-                else (80, 80, 80)
-            )
+            body_color = (115, 105, 85) if self.alive else (65, 65, 65)
+            roof_color = (190, 145, 45) if self.alive else (80, 80, 80)
 
             pygame.draw.rect(
                 surface,

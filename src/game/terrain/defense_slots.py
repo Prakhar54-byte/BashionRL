@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -49,9 +48,7 @@ class DefenseSlots:
         map_path = Path(map_path).resolve()
 
         if not map_path.is_file():
-            raise FileNotFoundError(
-                f"Slot map not found: {map_path}"
-            )
+            raise FileNotFoundError(f"Slot map not found: {map_path}")
 
         if not isinstance(layer_name, str) or not layer_name.strip():
             raise ValueError("Layer name must be a non-empty string.")
@@ -67,9 +64,7 @@ class DefenseSlots:
             self.tile_width = int(map_data["tilewidth"])
             self.tile_height = int(map_data["tileheight"])
         except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError(
-                f"Invalid Tiled map dimensions in {map_path}."
-            ) from exc
+            raise ValueError(f"Invalid Tiled map dimensions in {map_path}.") from exc
 
         if (
             map_width_tiles <= 0
@@ -77,9 +72,7 @@ class DefenseSlots:
             or self.tile_width <= 0
             or self.tile_height <= 0
         ):
-            raise ValueError(
-                "Map dimensions and tile dimensions must be positive."
-            )
+            raise ValueError("Map dimensions and tile dimensions must be positive.")
 
         self.map_width = map_width_tiles * self.tile_width
         self.map_height = map_height_tiles * self.tile_height
@@ -90,13 +83,9 @@ class DefenseSlots:
             slot_image_path = Path(slot_image_path).resolve()
 
             if not slot_image_path.is_file():
-                raise FileNotFoundError(
-                    f"Slot image not found: {slot_image_path}"
-                )
+                raise FileNotFoundError(f"Slot image not found: {slot_image_path}")
 
-            self.slot_image = pygame.image.load(
-                str(slot_image_path)
-            ).convert_alpha()
+            self.slot_image = pygame.image.load(str(slot_image_path)).convert_alpha()
 
         self.slots: list[DefenseSlot] = []
         self._load_slots(map_data.get("layers", []))
@@ -110,9 +99,7 @@ class DefenseSlots:
             yield layer
 
             if layer.get("type") == "group":
-                yield from DefenseSlots._iter_layers(
-                    layer.get("layers", [])
-                )
+                yield from DefenseSlots._iter_layers(layer.get("layers", []))
 
     def _load_slots(self, layers: list[dict[str, Any]]) -> None:
         """Load rectangular slot objects from the configured Tiled layer."""
@@ -123,8 +110,7 @@ class DefenseSlots:
                 layer
                 for layer in self._iter_layers(layers)
                 if layer.get("type") == "objectgroup"
-                and str(layer.get("name", "")).strip().casefold()
-                == normalized_name
+                and str(layer.get("name", "")).strip().casefold() == normalized_name
             ),
             None,
         )
@@ -143,13 +129,11 @@ class DefenseSlots:
 
         # Tiled layer x/y are expressed in tile units; offsetx/offsety
         # are pixel offsets.
-        layer_x = (
-            float(slot_layer.get("x", 0)) * self.tile_width
-            + float(slot_layer.get("offsetx", 0))
+        layer_x = float(slot_layer.get("x", 0)) * self.tile_width + float(
+            slot_layer.get("offsetx", 0)
         )
-        layer_y = (
-            float(slot_layer.get("y", 0)) * self.tile_height
-            + float(slot_layer.get("offsety", 0))
+        layer_y = float(slot_layer.get("y", 0)) * self.tile_height + float(
+            slot_layer.get("offsety", 0)
         )
 
         loaded_slots: list[DefenseSlot] = []
@@ -188,17 +172,11 @@ class DefenseSlots:
 
             if slot_id in seen_ids:
                 raise ValueError(
-                    f"Duplicate slot ID {slot_id} in layer "
-                    f"'{self.layer_name}'."
+                    f"Duplicate slot ID {slot_id} in layer '{self.layer_name}'."
                 )
 
-            if not all(
-                math.isfinite(value)
-                for value in (x, y, width, height)
-            ):
-                raise ValueError(
-                    f"Slot object {slot_id} contains non-finite geometry."
-                )
+            if not all(math.isfinite(value) for value in (x, y, width, height)):
+                raise ValueError(f"Slot object {slot_id} contains non-finite geometry.")
 
             rect = pygame.Rect(
                 round(x),
@@ -225,8 +203,7 @@ class DefenseSlots:
 
         if not loaded_slots:
             raise ValueError(
-                f"No rectangular slots were found in Tiled layer "
-                f"'{self.layer_name}'."
+                f"No rectangular slots were found in Tiled layer '{self.layer_name}'."
             )
 
         self.slots = loaded_slots
@@ -239,8 +216,7 @@ class DefenseSlots:
         """Draw icons for unoccupied slots, optionally showing their IDs."""
         if self.slot_image is None:
             raise RuntimeError(
-                f"Slot images were not loaded for layer "
-                f"'{self.layer_name}'."
+                f"Slot images were not loaded for layer '{self.layer_name}'."
             )
 
         if all(slot.occupied for slot in self.slots):

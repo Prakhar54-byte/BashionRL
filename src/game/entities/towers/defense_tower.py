@@ -53,9 +53,7 @@ class DefenseTower(Structure):
         if not isinstance(sprite, pygame.Surface):
             raise TypeError("Tower sprite must be a pygame Surface.")
 
-        if base_sprite is not None and not isinstance(
-            base_sprite, pygame.Surface
-        ):
+        if base_sprite is not None and not isinstance(base_sprite, pygame.Surface):
             raise TypeError("Base sprite must be a Surface or None.")
 
         validated_slot_size = self._validate_slot_size(slot_size)
@@ -137,9 +135,7 @@ class DefenseTower(Structure):
                 or not isinstance(value, (int, float))
                 or not math.isfinite(value)
             ):
-                raise ValueError(
-                    f"{name} must be a finite numeric value."
-                )
+                raise ValueError(f"{name} must be a finite numeric value.")
 
         if range_radius < 0:
             raise ValueError("Tower range cannot be negative.")
@@ -157,34 +153,25 @@ class DefenseTower(Structure):
             raise ValueError("Tower size scale must be positive.")
 
         if max_health <= 0:
-            raise ValueError(
-                "Tower maximum health must be finite and positive."
-            )
+            raise ValueError("Tower maximum health must be finite and positive.")
 
         if burst_interval < 0:
-            raise ValueError(
-                "Burst interval must be finite and non-negative."
-            )
+            raise ValueError("Burst interval must be finite and non-negative.")
 
-        if base_size_scale is not None:
-            if (
-                isinstance(base_size_scale, bool)
-                or not isinstance(base_size_scale, (int, float))
-                or not math.isfinite(base_size_scale)
-                or base_size_scale <= 0
-            ):
-                raise ValueError(
-                    "Base size scale must be finite and positive."
-                )
+        if base_size_scale is not None and (
+            isinstance(base_size_scale, bool)
+            or not isinstance(base_size_scale, (int, float))
+            or not math.isfinite(base_size_scale)
+            or base_size_scale <= 0
+        ):
+            raise ValueError("Base size scale must be finite and positive.")
 
         if (
             isinstance(shots_per_burst, bool)
             or not isinstance(shots_per_burst, int)
             or shots_per_burst < 1
         ):
-            raise ValueError(
-                "Shots per burst must be a positive integer."
-            )
+            raise ValueError("Shots per burst must be a positive integer.")
 
     @staticmethod
     def _validate_slot_size(
@@ -203,9 +190,7 @@ class DefenseTower(Structure):
                 or not math.isfinite(value)
                 or value <= 0
             ):
-                raise ValueError(
-                    "Slot dimensions must be finite and positive."
-                )
+                raise ValueError("Slot dimensions must be finite and positive.")
 
         return float(slot_size[0]), float(slot_size[1])
 
@@ -253,11 +238,7 @@ class DefenseTower(Structure):
         if self._burst_shots_remaining > 0:
             self._burst_timer = self.burst_interval
         else:
-            self.cooldown = (
-                1.0 / self.fire_rate
-                if self.fire_rate > 0
-                else 0.0
-            )
+            self.cooldown = 1.0 / self.fire_rate if self.fire_rate > 0 else 0.0
 
     def update(
         self,
@@ -271,9 +252,7 @@ class DefenseTower(Structure):
             or not math.isfinite(delta_time)
             or delta_time < 0
         ):
-            raise ValueError(
-                "Delta time must be finite and non-negative."
-            )
+            raise ValueError("Delta time must be finite and non-negative.")
 
         delta_time = float(delta_time)
 
@@ -290,10 +269,7 @@ class DefenseTower(Structure):
                 if direction.length_squared() > 0.0:
                     # The barrel artwork is assumed to face upward.
                     self.angle = (
-                        math.degrees(
-                            math.atan2(-direction.y, direction.x)
-                        )
-                        - 90.0
+                        math.degrees(math.atan2(-direction.y, direction.x)) - 90.0
                     )
 
                 if self._burst_shots_remaining > 0:
@@ -304,9 +280,7 @@ class DefenseTower(Structure):
                 elif self.cooldown <= 0.0:
                     self._fire(target)
 
-                    self._burst_shots_remaining = (
-                        self.shots_per_burst - 1
-                    )
+                    self._burst_shots_remaining = self.shots_per_burst - 1
 
                     if self._burst_shots_remaining > 0:
                         self._burst_timer = self.burst_interval
@@ -319,9 +293,7 @@ class DefenseTower(Structure):
             projectile.update(delta_time)
 
         self.projectiles[:] = [
-            projectile
-            for projectile in self.projectiles
-            if projectile.alive
+            projectile for projectile in self.projectiles if projectile.alive
         ]
 
     # ------------------------------------------------------------------
@@ -335,10 +307,7 @@ class DefenseTower(Structure):
         if self.base_sprite is None:
             return None
 
-        if (
-            self._scaled_base_sprite is None
-            or self._scaled_base_size != target_size
-        ):
+        if self._scaled_base_sprite is None or self._scaled_base_size != target_size:
             self._scaled_base_sprite = pygame.transform.smoothscale(
                 self.base_sprite,
                 target_size,
@@ -352,10 +321,7 @@ class DefenseTower(Structure):
         target_size: tuple[int, int],
     ) -> pygame.Surface:
         """Return the cached barrel before rotation."""
-        if (
-            self._scaled_sprite is None
-            or self._scaled_sprite_size != target_size
-        ):
+        if self._scaled_sprite is None or self._scaled_sprite_size != target_size:
             self._scaled_sprite = pygame.transform.smoothscale(
                 self.sprite,
                 target_size,
@@ -376,10 +342,7 @@ class DefenseTower(Structure):
         scaled_sprite = self._get_scaled_barrel(target_size)
         draw_angle = round(self.angle)
 
-        if (
-            self._rotated_sprite is None
-            or self._draw_angle != draw_angle
-        ):
+        if self._rotated_sprite is None or self._draw_angle != draw_angle:
             self._rotated_sprite = pygame.transform.rotate(
                 scaled_sprite,
                 draw_angle,
@@ -532,19 +495,11 @@ class DefenseTower(Structure):
             barrel_size = (
                 max(
                     1,
-                    round(
-                        self.sprite.get_width()
-                        * self.size_scale
-                        * scale_x
-                    ),
+                    round(self.sprite.get_width() * self.size_scale * scale_x),
                 ),
                 max(
                     1,
-                    round(
-                        self.sprite.get_height()
-                        * self.size_scale
-                        * scale_y
-                    ),
+                    round(self.sprite.get_height() * self.size_scale * scale_y),
                 ),
             )
 

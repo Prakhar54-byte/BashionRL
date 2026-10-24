@@ -36,9 +36,7 @@ class Enemy:
         config: EnemyConfig,
     ) -> None:
         if len(pathway.points) < 2:
-            raise ValueError(
-                "The pathway needs at least two points."
-            )
+            raise ValueError("The pathway needs at least two points.")
 
         self.pathway = pathway
         self.sprite = sprite
@@ -93,9 +91,7 @@ class Enemy:
     @staticmethod
     def _direction_angle(direction: pygame.Vector2) -> float:
         """Convert a direction vector into a pygame rotation angle."""
-        return math.degrees(
-            math.atan2(-direction.y, direction.x)
-        )
+        return math.degrees(math.atan2(-direction.y, direction.x))
 
     # ------------------------------------------------------------------
     # ------------------------------------------------------------------
@@ -151,9 +147,7 @@ class Enemy:
             or not math.isfinite(delta_time)
             or delta_time < 0
         ):
-            raise ValueError(
-                "Delta time must be finite and non-negative."
-            )
+            raise ValueError("Delta time must be finite and non-negative.")
 
         if not self.alive:
             return
@@ -175,9 +169,7 @@ class Enemy:
             or not math.isfinite(amount)
             or amount < 0
         ):
-            raise ValueError(
-                "Damage must be finite and non-negative."
-            )
+            raise ValueError("Damage must be finite and non-negative.")
 
         if not self.alive:
             return
@@ -222,20 +214,12 @@ class Enemy:
 
         target_width = max(
             1,
-            round(
-                rotated_sprite.get_width()
-                * scale_x
-                * self.size_scale
-            ),
+            round(rotated_sprite.get_width() * scale_x * self.size_scale),
         )
 
         target_height = max(
             1,
-            round(
-                rotated_sprite.get_height()
-                * scale_y
-                * self.size_scale
-            ),
+            round(rotated_sprite.get_height() * scale_y * self.size_scale),
         )
 
         rendered_sprite = pygame.transform.scale(
@@ -298,11 +282,7 @@ class Enemy:
             min(1.0, self.health / self.max_health),
         )
 
-        health_color = (
-            (130, 195, 75)
-            if self.is_tank
-            else (65, 220, 90)
-        )
+        health_color = (130, 195, 75) if self.is_tank else (65, 220, 90)
 
         pygame.draw.rect(
             surface,

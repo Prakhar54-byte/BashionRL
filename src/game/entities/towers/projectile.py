@@ -1,4 +1,3 @@
-
 """Projectile used by defense towers and tanks.
 
 Projectiles can target either an Enemy or a damageable Structure.
@@ -31,9 +30,7 @@ class Projectile:
             or not math.isfinite(speed)
             or speed <= 0
         ):
-            raise ValueError(
-                "Projectile speed must be finite and positive."
-            )
+            raise ValueError("Projectile speed must be finite and positive.")
 
         if (
             isinstance(damage, bool)
@@ -41,9 +38,7 @@ class Projectile:
             or not math.isfinite(damage)
             or damage < 0
         ):
-            raise ValueError(
-                "Projectile damage must be finite and non-negative."
-            )
+            raise ValueError("Projectile damage must be finite and non-negative.")
 
         self.position = pygame.Vector2(position)
         self.target = target
@@ -62,9 +57,7 @@ class Projectile:
             or not math.isfinite(delta_time)
             or delta_time < 0
         ):
-            raise ValueError(
-                "Delta time must be finite and non-negative."
-            )
+            raise ValueError("Delta time must be finite and non-negative.")
 
         # Stop if the target has been destroyed.
         if not self.target.alive:
@@ -73,10 +66,7 @@ class Projectile:
 
         # Enemies that reach the end of their route are no longer valid
         # targets. Structures do not have a reached_end attribute.
-        if (
-            isinstance(self.target, Enemy)
-            and self.target.reached_end
-        ):
+        if isinstance(self.target, Enemy) and self.target.reached_end:
             self.alive = False
             return
 

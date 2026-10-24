@@ -9,7 +9,6 @@ from typing import Any
 from src.game.entities.enemies.config import EnemyConfig
 from src.game.systems.wave_director import WaveConfig
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = PROJECT_ROOT / "configs" / "game.toml"
 
@@ -34,8 +33,7 @@ class EnemyAssetConfig:
             return
 
         raise ValueError(
-            "Enemy assets must define either 'sprite' or both "
-            "'base' and 'gun'."
+            "Enemy assets must define either 'sprite' or both 'base' and 'gun'."
         )
 
     @property
@@ -88,18 +86,14 @@ class TowerConfig:
                 or not math.isfinite(value)
                 or value <= 0
             ):
-                raise ValueError(
-                    f"Tower {name} must be finite and positive."
-                )
+                raise ValueError(f"Tower {name} must be finite and positive.")
 
         if (
             isinstance(self.shots_per_burst, bool)
             or not isinstance(self.shots_per_burst, int)
             or self.shots_per_burst < 1
         ):
-            raise ValueError(
-                "Shots per burst must be a positive integer."
-            )
+            raise ValueError("Shots per burst must be a positive integer.")
 
         if (
             isinstance(self.burst_interval, bool)
@@ -107,9 +101,7 @@ class TowerConfig:
             or not math.isfinite(self.burst_interval)
             or self.burst_interval < 0
         ):
-            raise ValueError(
-                "Burst interval must be finite and non-negative."
-            )
+            raise ValueError("Burst interval must be finite and non-negative.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,9 +124,7 @@ class ResourceTowerConfig:
             or not isinstance(self.cost, int)
             or self.cost <= 0
         ):
-            raise ValueError(
-                "Resource tower cost must be a positive integer."
-            )
+            raise ValueError("Resource tower cost must be a positive integer.")
 
         if (
             isinstance(self.max_health, bool)
@@ -153,8 +143,7 @@ class ResourceTowerConfig:
             or self.production_interval <= 0
         ):
             raise ValueError(
-                "Resource tower production interval must be finite "
-                "and positive."
+                "Resource tower production interval must be finite and positive."
             )
 
         if (
@@ -172,9 +161,7 @@ class ResourceTowerConfig:
             or not math.isfinite(self.size_scale)
             or self.size_scale <= 0
         ):
-            raise ValueError(
-                "Resource tower size scale must be finite and positive."
-            )
+            raise ValueError("Resource tower size scale must be finite and positive.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,9 +180,7 @@ class DifficultyConfig:
             or not isinstance(self.max_waves, int)
             or self.max_waves < 1
         ):
-            raise ValueError(
-                "Maximum waves must be a positive integer."
-            )
+            raise ValueError("Maximum waves must be a positive integer.")
 
         if (
             isinstance(self.base_health, bool)
@@ -203,18 +188,14 @@ class DifficultyConfig:
             or not math.isfinite(self.base_health)
             or self.base_health <= 0
         ):
-            raise ValueError(
-                "Base health must be finite and positive."
-            )
+            raise ValueError("Base health must be finite and positive.")
 
         if (
             isinstance(self.starting_resources, bool)
             or not isinstance(self.starting_resources, int)
             or self.starting_resources < 0
         ):
-            raise ValueError(
-                "Starting resources must be a non-negative integer."
-            )
+            raise ValueError("Starting resources must be a non-negative integer.")
 
         if (
             isinstance(self.enemy_health_growth, bool)
@@ -222,9 +203,7 @@ class DifficultyConfig:
             or not math.isfinite(self.enemy_health_growth)
             or self.enemy_health_growth < 0
         ):
-            raise ValueError(
-                "Enemy health growth must be finite and non-negative."
-            )
+            raise ValueError("Enemy health growth must be finite and non-negative.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -307,21 +286,9 @@ def _parse_enemy_assets(
         gun = asset_data.get("gun")
 
         parsed[enemy_name] = EnemyAssetConfig(
-            sprite_path=(
-                _resolve_asset_path(sprite)
-                if sprite is not None
-                else None
-            ),
-            base_path=(
-                _resolve_asset_path(base)
-                if base is not None
-                else None
-            ),
-            gun_path=(
-                _resolve_asset_path(gun)
-                if gun is not None
-                else None
-            ),
+            sprite_path=(_resolve_asset_path(sprite) if sprite is not None else None),
+            base_path=(_resolve_asset_path(base) if base is not None else None),
+            gun_path=(_resolve_asset_path(gun) if gun is not None else None),
         )
 
     return parsed
@@ -332,9 +299,7 @@ def _parse_tower_configs(
 ) -> dict[str, TowerConfig]:
     """Parse and validate every configured defense tower."""
     if not isinstance(values, dict):
-        raise TypeError(
-            "The [towers] configuration must contain TOML tables."
-        )
+        raise TypeError("The [towers] configuration must contain TOML tables.")
 
     allowed_keys = {
         "name",
@@ -380,9 +345,7 @@ def _parse_resource_tower_config(
 ) -> ResourceTowerConfig:
     """Parse and validate Resource Tower settings."""
     if not isinstance(values, dict):
-        raise TypeError(
-            "The [resource_tower] configuration must be a TOML table."
-        )
+        raise TypeError("The [resource_tower] configuration must be a TOML table.")
 
     allowed_keys = {
         "name",
@@ -396,8 +359,7 @@ def _parse_resource_tower_config(
 
     if unexpected_keys:
         raise ValueError(
-            "Unknown resource tower configuration keys: "
-            f"{sorted(unexpected_keys)}"
+            f"Unknown resource tower configuration keys: {sorted(unexpected_keys)}"
         )
 
     return ResourceTowerConfig(**values)
@@ -406,17 +368,14 @@ def _parse_resource_tower_config(
 def _parse_king_tower_max_health(values: Any) -> float:
     """Parse and validate King Tower maximum health."""
     if not isinstance(values, dict):
-        raise TypeError(
-            "The [king_tower] configuration must be a TOML table."
-        )
+        raise TypeError("The [king_tower] configuration must be a TOML table.")
 
     allowed_keys = {"max_health"}
     unexpected_keys = set(values) - allowed_keys
 
     if unexpected_keys:
         raise ValueError(
-            "Unknown King Tower configuration keys: "
-            f"{sorted(unexpected_keys)}"
+            f"Unknown King Tower configuration keys: {sorted(unexpected_keys)}"
         )
 
     max_health = values.get("max_health", 500.0)
@@ -427,9 +386,7 @@ def _parse_king_tower_max_health(values: Any) -> float:
         or not math.isfinite(max_health)
         or max_health <= 0
     ):
-        raise ValueError(
-            "King Tower maximum health must be finite and positive."
-        )
+        raise ValueError("King Tower maximum health must be finite and positive.")
 
     return float(max_health)
 
@@ -439,9 +396,7 @@ def _parse_economy_config(
 ) -> tuple[float, int]:
     """Parse passive coin-generation settings."""
     if not isinstance(values, dict):
-        raise TypeError(
-            "The [economy] configuration must be a TOML table."
-        )
+        raise TypeError("The [economy] configuration must be a TOML table.")
 
     allowed_keys = {
         "passive_income_interval",
@@ -451,8 +406,7 @@ def _parse_economy_config(
 
     if unexpected_keys:
         raise ValueError(
-            "Unknown economy configuration keys: "
-            f"{sorted(unexpected_keys)}"
+            f"Unknown economy configuration keys: {sorted(unexpected_keys)}"
         )
 
     interval = values.get("passive_income_interval", 15.0)
@@ -464,18 +418,10 @@ def _parse_economy_config(
         or not math.isfinite(interval)
         or interval <= 0
     ):
-        raise ValueError(
-            "Passive income interval must be finite and positive."
-        )
+        raise ValueError("Passive income interval must be finite and positive.")
 
-    if (
-        isinstance(amount, bool)
-        or not isinstance(amount, int)
-        or amount <= 0
-    ):
-        raise ValueError(
-            "Passive income amount must be a positive integer."
-        )
+    if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
+        raise ValueError("Passive income amount must be a positive integer.")
 
     return float(interval), amount
 
@@ -506,9 +452,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
         )
 
     defense_slot_path = _resolve_asset_path(defense_assets["slot"])
-    resource_slot_path = _resolve_asset_path(
-        defense_assets["resource_slot"]
-    )
+    resource_slot_path = _resolve_asset_path(defense_assets["resource_slot"])
 
     parsed_enemy_assets = _parse_enemy_assets(enemy_assets)
 
@@ -516,9 +460,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
     king_assets = assets.get("king")
 
     if not isinstance(king_assets, dict) or "king" not in king_assets:
-        raise ValueError(
-            "Missing 'king' asset in [assets.king] in game.toml."
-        )
+        raise ValueError("Missing 'king' asset in [assets.king] in game.toml.")
 
     king_tower_sprite_path = _resolve_asset_path(king_assets["king"])
 
@@ -526,9 +468,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
     resource_assets = assets.get("resource_tower", {})
 
     if not isinstance(resource_assets, dict):
-        raise TypeError(
-            "[assets.resource_tower] must be a TOML table."
-        )
+        raise TypeError("[assets.resource_tower] must be a TOML table.")
 
     unexpected_resource_asset_keys = set(resource_assets) - {"sprite"}
 
@@ -540,17 +480,13 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
 
     resource_sprite = resource_assets.get("sprite")
     resource_tower_sprite_path = (
-        _resolve_asset_path(resource_sprite)
-        if resource_sprite is not None
-        else None
+        _resolve_asset_path(resource_sprite) if resource_sprite is not None else None
     )
 
     # Shared stationary defense-tower base sprite.
     base_asset = defense_assets.get("cannon_base")
     defense_base_path = (
-        _resolve_asset_path(base_asset)
-        if base_asset is not None
-        else None
+        _resolve_asset_path(base_asset) if base_asset is not None else None
     )
 
     # Slot images and shared base are not placeable tower sprites.
@@ -568,20 +504,15 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
 
     # Parse gameplay configurations.
     enemy_configs = {
-        name: EnemyConfig(**values)
-        for name, values in data["enemies"].items()
+        name: EnemyConfig(**values) for name, values in data["enemies"].items()
     }
 
     # Includes max_health for each defense tower.
     tower_configs = _parse_tower_configs(data["towers"])
 
-    resource_tower_config = _parse_resource_tower_config(
-        data.get("resource_tower", {})
-    )
+    resource_tower_config = _parse_resource_tower_config(data.get("resource_tower", {}))
 
-    king_tower_max_health = _parse_king_tower_max_health(
-        data.get("king_tower", {})
-    )
+    king_tower_max_health = _parse_king_tower_max_health(data.get("king_tower", {}))
 
     (
         passive_income_interval,

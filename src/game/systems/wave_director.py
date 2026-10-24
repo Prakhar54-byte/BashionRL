@@ -31,9 +31,7 @@ class WaveConfig:
             or not isinstance(self.initial_enemy_count, int)
             or self.initial_enemy_count < 1
         ):
-            raise ValueError(
-                "Initial enemy count must be a positive integer."
-            )
+            raise ValueError("Initial enemy count must be a positive integer.")
 
         if (
             isinstance(self.additional_enemies_per_wave, bool)
@@ -41,8 +39,7 @@ class WaveConfig:
             or self.additional_enemies_per_wave < 0
         ):
             raise ValueError(
-                "Additional enemies per wave must be a "
-                "non-negative integer."
+                "Additional enemies per wave must be a non-negative integer."
             )
 
         finite_values = {
@@ -64,37 +61,22 @@ class WaveConfig:
             raise ValueError("Spawn interval must be positive.")
 
         if self.initial_intermission < 0:
-            raise ValueError(
-                "Initial intermission cannot be negative."
-            )
+            raise ValueError("Initial intermission cannot be negative.")
 
         if self.intermission_between_waves < 0:
-            raise ValueError(
-                "Wave intermission cannot be negative."
-            )
+            raise ValueError("Wave intermission cannot be negative.")
 
         if self.difficulty_growth < 0:
-            raise ValueError(
-                "Difficulty growth cannot be negative."
-            )
+            raise ValueError("Difficulty growth cannot be negative.")
 
         for name, value in (
             ("light_tank_start_wave", self.light_tank_start_wave),
             ("strongest_enemy_start_wave", self.strongest_enemy_start_wave),
         ):
-            if (
-                isinstance(value, bool)
-                or not isinstance(value, int)
-                or value < 1
-            ):
-                raise ValueError(
-                    f"{name} must be a positive integer."
-                )
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise ValueError(f"{name} must be a positive integer.")
 
-        if (
-            self.light_tank_start_wave
-            > self.strongest_enemy_start_wave
-        ):
+        if self.light_tank_start_wave > self.strongest_enemy_start_wave:
             raise ValueError(
                 "Light tanks cannot unlock after the strongest enemy tier."
             )
@@ -119,13 +101,8 @@ class WaveDirector:
         if not enemy_types:
             raise ValueError("At least one enemy type is required.")
 
-        if any(
-            not isinstance(name, str) or not name.strip()
-            for name in enemy_types
-        ):
-            raise ValueError(
-                "Enemy type names must be non-empty strings."
-            )
+        if any(not isinstance(name, str) or not name.strip() for name in enemy_types):
+            raise ValueError("Enemy type names must be non-empty strings.")
 
         if len(set(enemy_types)) != len(enemy_types):
             raise ValueError("Enemy type names must be unique.")
@@ -147,10 +124,7 @@ class WaveDirector:
     @property
     def waiting_for_next_wave(self) -> bool:
         """Whether no wave is currently spawning enemies."""
-        return (
-            not self.wave_active
-            and self.enemies_remaining_to_spawn == 0
-        )
+        return not self.wave_active and self.enemies_remaining_to_spawn == 0
 
     # ------------------------------------------------------------------
     # Exponential wave scaling
@@ -169,14 +143,10 @@ class WaveDirector:
         # initial_count = 5
         # additional_count = 2
         # growth_factor = 1 + 2/5 = 1.4
-        growth_factor = (
-            1.0 + additional_count / initial_count
-        )
+        growth_factor = 1.0 + additional_count / initial_count
 
         try:
-            enemy_count = math.ceil(
-                initial_count * growth_factor ** (wave_number - 1)
-            )
+            enemy_count = math.ceil(initial_count * growth_factor ** (wave_number - 1))
         except OverflowError:
             raise OverflowError(
                 f"Enemy count overflow at wave {wave_number}."
@@ -218,9 +188,7 @@ class WaveDirector:
         # Two enemy types: the last type is the stronger enemy.
         if count == 2:
             strongest_probability = min(
-                0.15
-                + (self.wave_number - 1)
-                * self.config.difficulty_growth,
+                0.15 + (self.wave_number - 1) * self.config.difficulty_growth,
                 0.85,
             )
 
@@ -234,17 +202,11 @@ class WaveDirector:
             standard_types = self.enemy_types[:-1]
             strongest_type = self.enemy_types[-1]
 
-            if (
-                self.wave_number
-                < self.config.strongest_enemy_start_wave
-            ):
+            if self.wave_number < self.config.strongest_enemy_start_wave:
                 return self.rng.choice(standard_types)
 
-            if (
-                self.rng.random()
-                < self._strongest_probability(
-                    self.config.strongest_enemy_start_wave
-                )
+            if self.rng.random() < self._strongest_probability(
+                self.config.strongest_enemy_start_wave
             ):
                 return strongest_type
 
@@ -258,12 +220,9 @@ class WaveDirector:
 
         # Try the strongest tier first once unlocked.
         if (
-            self.wave_number
-            >= self.config.strongest_enemy_start_wave
+            self.wave_number >= self.config.strongest_enemy_start_wave
             and self.rng.random()
-            < self._strongest_probability(
-                self.config.strongest_enemy_start_wave
-            )
+            < self._strongest_probability(self.config.strongest_enemy_start_wave)
         ):
             return strongest_type
 
@@ -271,9 +230,7 @@ class WaveDirector:
         if (
             self.wave_number >= self.config.light_tank_start_wave
             and self.rng.random()
-            < self._strongest_probability(
-                self.config.light_tank_start_wave
-            )
+            < self._strongest_probability(self.config.light_tank_start_wave)
         ):
             return light_tank_type
 
@@ -304,18 +261,14 @@ class WaveDirector:
             or not math.isfinite(delta_time)
             or delta_time < 0
         ):
-            raise ValueError(
-                "Delta time must be finite and non-negative."
-            )
+            raise ValueError("Delta time must be finite and non-negative.")
 
         if (
             isinstance(active_enemy_count, bool)
             or not isinstance(active_enemy_count, int)
             or active_enemy_count < 0
         ):
-            raise ValueError(
-                "Active enemy count must be a non-negative integer."
-            )
+            raise ValueError("Active enemy count must be a non-negative integer.")
 
         if not callable(spawn_enemy):
             raise TypeError("spawn_enemy must be callable.")
@@ -351,9 +304,7 @@ class WaveDirector:
             # ----------------------------------------------------------
             if self.enemies_remaining_to_spawn == 0:
                 self.wave_active = False
-                self.intermission_timer = (
-                    self.config.intermission_between_waves
-                )
+                self.intermission_timer = self.config.intermission_between_waves
 
                 if remaining_time <= 0:
                     return

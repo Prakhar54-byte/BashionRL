@@ -95,8 +95,14 @@ def test_loss_reward_is_emitted_once():
     env.simulation.enemies[0].reached_end = True
     _, reward, terminated, truncated, info = env.step(0)
     assert terminated and not truncated
-    assert info["reward_terms"] == {"kills": 0, "base_damage": -1, "waves": 0,
-                                    "outcome": -20, "invalid_action": 0, "spending": 0}
+    assert info["reward_terms"] == {
+        "kills": 0,
+        "base_damage": -1,
+        "waves": 0,
+        "outcome": -20,
+        "invalid_action": 0,
+        "spending": 0,
+    }
     assert not info["survived"]
     assert reward == -21
     with pytest.raises(RuntimeError):
@@ -132,8 +138,16 @@ def test_model_save_load_and_manifest_guard(tmp_path):
     from sb3_contrib import MaskablePPO
 
     env = BastionEnv()
-    model = MaskablePPO("MlpPolicy", env, n_steps=8, batch_size=8, n_epochs=1,
-                        policy_kwargs={"net_arch": [16]}, device="cpu", seed=0)
+    model = MaskablePPO(
+        "MlpPolicy",
+        env,
+        n_steps=8,
+        batch_size=8,
+        n_epochs=1,
+        policy_kwargs={"net_arch": [16]},
+        device="cpu",
+        seed=0,
+    )
     model.learn(8)
     path = tmp_path / "model.zip"
     model.save(path)
@@ -168,11 +182,18 @@ def test_enemy_rows_preserve_positions_health_and_padding():
     second.health = 80
     observation = env.observation()
     rows = observation[163:].reshape(64, 6)
-    np.testing.assert_allclose(rows[0], [
-        1, second.position.x / sim.pathway.map_width,
-        second.position.y / sim.pathway.map_height, 0.8, 1,
-        start.distance_to(second.position) / env.route_length,
-    ], rtol=1e-6)
+    np.testing.assert_allclose(
+        rows[0],
+        [
+            1,
+            second.position.x / sim.pathway.map_width,
+            second.position.y / sim.pathway.map_height,
+            0.8,
+            1,
+            start.distance_to(second.position) / env.route_length,
+        ],
+        rtol=1e-6,
+    )
     assert rows[1, 3] == 1 and rows[1, 4] == 0.5
     np.testing.assert_array_equal(rows[2:], 0)
     assert env.observation_space.contains(observation)
@@ -205,9 +226,15 @@ def test_experimental_balance_and_horizon_do_not_change_baseline_schema():
 
 
 @pytest.mark.parametrize("explicit_output", [False, True])
-def test_cli_evaluation_reports_and_saves_all_required_metrics(tmp_path, monkeypatch, explicit_output):
+def test_cli_evaluation_reports_and_saves_all_required_metrics(
+    tmp_path, monkeypatch, explicit_output
+):
     monkeypatch.chdir(tmp_path)
-    path = tmp_path / "evaluation.json" if explicit_output else tmp_path / "runs/evaluation-baseline.json"
+    path = (
+        tmp_path / "evaluation.json"
+        if explicit_output
+        else tmp_path / "runs/evaluation-baseline.json"
+    )
     arguments = ["rl", "evaluate", "--episodes", "2", "--max-steps", "1"]
     if explicit_output:
         arguments.extend(["--output", str(path)])
@@ -218,8 +245,15 @@ def test_cli_evaluation_reports_and_saves_all_required_metrics(tmp_path, monkeyp
     assert result["max_steps"] == 1
     assert result["survival_rate"] == result["truncation_rate"] == 1
     assert result["win_rate"] == 0
-    for name in ("mean_episode_reward", "std_episode_reward", "mean_base_health",
-                 "mean_waves_reached", "mean_waves_completed", "mean_kills", "mean_leaks"):
+    for name in (
+        "mean_episode_reward",
+        "std_episode_reward",
+        "mean_base_health",
+        "mean_waves_reached",
+        "mean_waves_completed",
+        "mean_kills",
+        "mean_leaks",
+    ):
         assert name in result
     assert len(result["results"]) == 2
     assert [item["seed"] for item in result["results"]] == [30000, 30001]
@@ -228,9 +262,23 @@ def test_cli_evaluation_reports_and_saves_all_required_metrics(tmp_path, monkeyp
 def test_cli_train_and_evaluate_smoke(tmp_path, monkeypatch):
     pytest.importorskip("sb3_contrib")
     output = tmp_path / "training"
-    monkeypatch.setattr("sys.argv", ["rl", "train", "--steps", "256", "--max-steps", "2",
-                                    "--eval-freq", "256", "--eval-episodes", "1",
-                                    "--output", str(output)])
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "rl",
+            "train",
+            "--steps",
+            "256",
+            "--max-steps",
+            "2",
+            "--eval-freq",
+            "256",
+            "--eval-episodes",
+            "1",
+            "--output",
+            str(output),
+        ],
+    )
     main()
     model = output / "final.zip"
     assert model.is_file() and (output / "best_model.zip").is_file()
@@ -239,8 +287,21 @@ def test_cli_train_and_evaluate_smoke(tmp_path, monkeypatch):
     assert metadata["training_max_steps"] == 2
     assert (output / "progress.csv").is_file()
     report = tmp_path / "model-evaluation.json"
-    monkeypatch.setattr("sys.argv", ["rl", "evaluate", "--model", str(model),
-                                    "--episodes", "2", "--max-steps", "3", "--output", str(report)])
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "rl",
+            "evaluate",
+            "--model",
+            str(model),
+            "--episodes",
+            "2",
+            "--max-steps",
+            "3",
+            "--output",
+            str(report),
+        ],
+    )
     main()
     assert json.loads(report.read_text())["episodes"] == 2
 
@@ -252,9 +313,13 @@ def test_cli_rejects_invalid_horizon(monkeypatch):
     assert error.value.code == 2
 
 
-@pytest.mark.parametrize(("frame_ms", "ticks_per_frame", "prediction_count"),
-                         [(1000 / 60, 1, 2), (2000, 6, 12)])
-def test_spectator_frame_pacing_and_stall_recovery(monkeypatch, frame_ms, ticks_per_frame, prediction_count):
+@pytest.mark.parametrize(
+    ("frame_ms", "ticks_per_frame", "prediction_count"),
+    [(1000 / 60, 1, 2), (2000, 6, 12)],
+)
+def test_spectator_frame_pacing_and_stall_recovery(
+    monkeypatch, frame_ms, ticks_per_frame, prediction_count
+):
     import pygame
 
     import main as frontend
@@ -271,13 +336,21 @@ def test_spectator_frame_pacing_and_stall_recovery(monkeypatch, frame_ms, ticks_
         return env
 
     monkeypatch.setattr("src.game.rl.environment.BastionEnv", create_env)
-    monkeypatch.setattr("src.game.rl.checkpoint.load_model",
-                        lambda *args: SimpleNamespace(predict=predict))
-    monkeypatch.setattr(pygame.time, "Clock", lambda: SimpleNamespace(tick=lambda fps: frame_ms))
-    monkeypatch.setattr(pygame.display, "flip", lambda: frames.append(environments[0].simulation.ticks))
-    monkeypatch.setattr(pygame.event, "get", lambda: (
-        [pygame.event.Event(pygame.QUIT)] if len(frames) >= 59 else []
-    ))
+    monkeypatch.setattr(
+        "src.game.rl.checkpoint.load_model",
+        lambda *args: SimpleNamespace(predict=predict),
+    )
+    monkeypatch.setattr(
+        pygame.time, "Clock", lambda: SimpleNamespace(tick=lambda fps: frame_ms)
+    )
+    monkeypatch.setattr(
+        pygame.display, "flip", lambda: frames.append(environments[0].simulation.ticks)
+    )
+    monkeypatch.setattr(
+        pygame.event,
+        "get",
+        lambda: [pygame.event.Event(pygame.QUIT)] if len(frames) >= 59 else [],
+    )
     frontend.main()
     assert frames == [index * ticks_per_frame for index in range(1, 61)]
     assert predict.call_count == prediction_count

@@ -1,4 +1,3 @@
-
 """Tank enemy variants (light and heavy).
 
 Tanks follow their assigned Tiled routes without chasing targets.
@@ -106,9 +105,7 @@ class Tank(Enemy):
             or not math.isfinite(delta_time)
             or delta_time < 0
         ):
-            raise ValueError(
-                "Delta time must be finite and non-negative."
-            )
+            raise ValueError("Delta time must be finite and non-negative.")
 
         if not self.alive:
             self.clear_gun_target()
@@ -120,9 +117,7 @@ class Tank(Enemy):
             projectile.update(delta_time)
 
         self.projectiles = [
-            projectile
-            for projectile in self.projectiles
-            if projectile.alive
+            projectile for projectile in self.projectiles if projectile.alive
         ]
 
         # Advance weapon cooldown.
@@ -149,9 +144,7 @@ class Tank(Enemy):
             for target in targets
             if target.alive
             and not target.destroyed
-            and (
-                target.position - self.position
-            ).length_squared() <= range_squared
+            and (target.position - self.position).length_squared() <= range_squared
         ]
 
         if not candidates:
@@ -161,9 +154,7 @@ class Tank(Enemy):
         # Select the nearest living structure in range.
         target = min(
             candidates,
-            key=lambda structure: (
-                structure.position - self.position
-            ).length_squared(),
+            key=lambda structure: (structure.position - self.position).length_squared(),
         )
 
         self._attack_target = target

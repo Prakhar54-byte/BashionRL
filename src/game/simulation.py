@@ -10,10 +10,8 @@ from typing import Any
 import pygame
 
 from src.game.config import GameConfig, load_config
-from src.game.entities.defense_tower import DefenseTower
-from src.game.entities.enemy import Enemy, Soldier, Tank
-from src.game.entities.king_tower import KingTower
-from src.game.entities.resource_tower import ResourceTower
+from src.game.entities.enemies import Enemy, Soldier, Tank
+from src.game.entities.towers import DefenseTower, KingTower, ResourceTower
 from src.game.rendering.asset_loader import AssetLoader
 from src.game.state.game_state import GameState
 from src.game.systems.wave_director import WaveDirector
@@ -526,8 +524,6 @@ class Simulation:
                 king_tower.take_damage(enemy.config.attack_damage)
                 enemy.suicide_attacked = True
                 enemy.alive = False
-                enemy.target_structure = None
-                enemy.clear_gun_target()
 
                 break
 

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import math
@@ -75,7 +74,7 @@ class Structure:
     ) -> None:
         """Validate a structure's identifier."""
         if isinstance(structure_id, bool):
-            raise ValueError(
+            raise TypeError(
                 "Structure ID must be a non-empty string or integer."
             )
 

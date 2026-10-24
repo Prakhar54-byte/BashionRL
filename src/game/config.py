@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import math
@@ -7,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.game.entities.enemy import EnemyConfig
+from src.game.entities.enemies.config import EnemyConfig
 from src.game.systems.wave_director import WaveConfig
 
 
@@ -284,7 +283,7 @@ def _parse_enemy_assets(
             continue
 
         if not isinstance(asset_data, dict):
-            raise ValueError(
+            raise TypeError(
                 f"Assets for enemy '{enemy_name}' must be a path "
                 "or a table containing sprite or base/gun paths."
             )
@@ -328,7 +327,7 @@ def _parse_resource_tower_config(
 ) -> ResourceTowerConfig:
     """Parse resource tower settings and apply defaults for omitted keys."""
     if not isinstance(values, dict):
-        raise ValueError(
+        raise TypeError(
             "The [resource_tower] configuration must be a TOML table."
         )
 
@@ -400,7 +399,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
     resource_assets = assets.get("resource_tower", {})
 
     if not isinstance(resource_assets, dict):
-        raise ValueError(
+        raise TypeError(
             "[assets.resource_tower] must be a TOML table."
         )
 

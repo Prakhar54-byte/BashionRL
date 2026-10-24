@@ -40,13 +40,13 @@ class EnemyAssetConfig:
 
     @property
     def is_tank(self) -> bool:
-        """Whether the enemy has separate base and gun sprites."""
+        """Whether this enemy uses separate base and gun sprites."""
         return self.base_path is not None and self.gun_path is not None
 
 
 @dataclass(frozen=True, slots=True)
 class TowerConfig:
-    """Combat, economy, rendering, and firing configuration."""
+    """Combat, health, rendering, and firing configuration."""
 
     name: str
     cost: int
@@ -54,6 +54,7 @@ class TowerConfig:
     damage: float
     fire_rate: float
     projectile_speed: float
+    max_health: float = 250.0
     size_scale: float = 0.5
     base_size_scale: float = 0.5
     shots_per_burst: int = 1
@@ -75,6 +76,7 @@ class TowerConfig:
             "damage": self.damage,
             "fire_rate": self.fire_rate,
             "projectile_speed": self.projectile_speed,
+            "max_health": self.max_health,
             "size_scale": self.size_scale,
             "base_size_scale": self.base_size_scale,
         }
@@ -112,13 +114,13 @@ class TowerConfig:
 
 @dataclass(frozen=True, slots=True)
 class ResourceTowerConfig:
-    """Economy, durability, and rendering configuration."""
+    """Resource Tower economy, durability, and rendering settings."""
 
     name: str = "Resource Tower"
     cost: int = 125
     max_health: float = 250.0
-    production_interval: float = 15.0
-    production_amount: int = 10
+    production_interval: float = 10.0
+    production_amount: int = 50
     size_scale: float = 1.0
 
     def __post_init__(self) -> None:
@@ -243,7 +245,6 @@ class GameConfig:
 
     enemy_assets: dict[str, EnemyAssetConfig]
 
-    # The two slot types have independent images.
     defense_slot_path: Path
     resource_slot_path: Path
 
@@ -256,7 +257,12 @@ class GameConfig:
     enemies: dict[str, EnemyConfig]
     towers: dict[str, TowerConfig]
     resource_tower: ResourceTowerConfig
+    king_tower_max_health: float
     difficulties: dict[str, DifficultyConfig]
+
+    # Passive income during preparation, combat, and intermissions.
+    passive_income_interval: float = 15.0
+    passive_income_amount: int = 50
 
 
 def _resolve_asset_path(asset_path: str) -> Path:
@@ -270,12 +276,11 @@ def _resolve_asset_path(asset_path: str) -> Path:
 def _parse_enemy_assets(
     enemy_assets: dict[str, Any],
 ) -> dict[str, EnemyAssetConfig]:
-    """Parse enemy assets in single-sprite or base-and-gun format."""
+    """Parse single-sprite enemies and separate tank base/gun assets."""
     parsed: dict[str, EnemyAssetConfig] = {}
 
     for enemy_name, asset_data in enemy_assets.items():
-        # Backward compatibility with the old format:
-        # enemy1 = "Assets/Main/Entities/Enemies/enemy1.png"
+        # Backward compatibility with single-path enemy asset definitions.
         if isinstance(asset_data, str):
             parsed[enemy_name] = EnemyAssetConfig(
                 sprite_path=_resolve_asset_path(asset_data),
@@ -322,10 +327,58 @@ def _parse_enemy_assets(
     return parsed
 
 
+def _parse_tower_configs(
+    values: Any,
+) -> dict[str, TowerConfig]:
+    """Parse and validate every configured defense tower."""
+    if not isinstance(values, dict):
+        raise TypeError(
+            "The [towers] configuration must contain TOML tables."
+        )
+
+    allowed_keys = {
+        "name",
+        "cost",
+        "range_radius",
+        "damage",
+        "fire_rate",
+        "projectile_speed",
+        "max_health",
+        "size_scale",
+        "base_size_scale",
+        "shots_per_burst",
+        "burst_interval",
+    }
+
+    configs: dict[str, TowerConfig] = {}
+
+    for tower_name, tower_values in values.items():
+        if not isinstance(tower_values, dict):
+            raise TypeError(
+                f"Configuration for tower '{tower_name}' must be a TOML table."
+            )
+
+        unexpected_keys = set(tower_values) - allowed_keys
+        if unexpected_keys:
+            raise ValueError(
+                f"Unknown configuration keys for tower '{tower_name}': "
+                f"{sorted(unexpected_keys)}"
+            )
+
+        try:
+            configs[tower_name] = TowerConfig(**tower_values)
+        except TypeError as exc:
+            raise ValueError(
+                f"Invalid configuration for tower '{tower_name}': {exc}"
+            ) from exc
+
+    return configs
+
+
 def _parse_resource_tower_config(
-    values: dict[str, Any],
+    values: Any,
 ) -> ResourceTowerConfig:
-    """Parse resource tower settings and apply defaults for omitted keys."""
+    """Parse and validate Resource Tower settings."""
     if not isinstance(values, dict):
         raise TypeError(
             "The [resource_tower] configuration must be a TOML table."
@@ -350,6 +403,83 @@ def _parse_resource_tower_config(
     return ResourceTowerConfig(**values)
 
 
+def _parse_king_tower_max_health(values: Any) -> float:
+    """Parse and validate King Tower maximum health."""
+    if not isinstance(values, dict):
+        raise TypeError(
+            "The [king_tower] configuration must be a TOML table."
+        )
+
+    allowed_keys = {"max_health"}
+    unexpected_keys = set(values) - allowed_keys
+
+    if unexpected_keys:
+        raise ValueError(
+            "Unknown King Tower configuration keys: "
+            f"{sorted(unexpected_keys)}"
+        )
+
+    max_health = values.get("max_health", 500.0)
+
+    if (
+        isinstance(max_health, bool)
+        or not isinstance(max_health, (int, float))
+        or not math.isfinite(max_health)
+        or max_health <= 0
+    ):
+        raise ValueError(
+            "King Tower maximum health must be finite and positive."
+        )
+
+    return float(max_health)
+
+
+def _parse_economy_config(
+    values: Any,
+) -> tuple[float, int]:
+    """Parse passive coin-generation settings."""
+    if not isinstance(values, dict):
+        raise TypeError(
+            "The [economy] configuration must be a TOML table."
+        )
+
+    allowed_keys = {
+        "passive_income_interval",
+        "passive_income_amount",
+    }
+    unexpected_keys = set(values) - allowed_keys
+
+    if unexpected_keys:
+        raise ValueError(
+            "Unknown economy configuration keys: "
+            f"{sorted(unexpected_keys)}"
+        )
+
+    interval = values.get("passive_income_interval", 15.0)
+    amount = values.get("passive_income_amount", 50)
+
+    if (
+        isinstance(interval, bool)
+        or not isinstance(interval, (int, float))
+        or not math.isfinite(interval)
+        or interval <= 0
+    ):
+        raise ValueError(
+            "Passive income interval must be finite and positive."
+        )
+
+    if (
+        isinstance(amount, bool)
+        or not isinstance(amount, int)
+        or amount <= 0
+    ):
+        raise ValueError(
+            "Passive income amount must be a positive integer."
+        )
+
+    return float(interval), amount
+
+
 def load_config(path: Path = CONFIG_PATH) -> GameConfig:
     """Load and validate game configuration from TOML."""
     config_path = Path(path).resolve()
@@ -365,12 +495,9 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
     enemy_assets = assets["enemies"]
     defense_assets = assets["defense"]
 
-    # Validate all slot image entries before resolving paths.
-    required_defense_assets = {
-        "slot",
-        "resource_slot",
-    }
-    missing_slot_assets = required_defense_assets - set(defense_assets)
+    # Validate required slot assets.
+    required_slot_assets = {"slot", "resource_slot"}
+    missing_slot_assets = required_slot_assets - set(defense_assets)
 
     if missing_slot_assets:
         raise ValueError(
@@ -385,7 +512,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
 
     parsed_enemy_assets = _parse_enemy_assets(enemy_assets)
 
-    # King Tower sprite: [assets.king] king = "..."
+    # King Tower sprite.
     king_assets = assets.get("king")
 
     if not isinstance(king_assets, dict) or "king" not in king_assets:
@@ -395,7 +522,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
 
     king_tower_sprite_path = _resolve_asset_path(king_assets["king"])
 
-    # Resource Tower sprite is optional; its entity can render a placeholder.
+    # Resource Tower sprite is optional.
     resource_assets = assets.get("resource_tower", {})
 
     if not isinstance(resource_assets, dict):
@@ -418,7 +545,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
         else None
     )
 
-    # Shared stationary base sprite used by defense towers.
+    # Shared stationary defense-tower base sprite.
     base_asset = defense_assets.get("cannon_base")
     defense_base_path = (
         _resolve_asset_path(base_asset)
@@ -426,8 +553,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
         else None
     )
 
-    # Exclude both slot images and the shared cannon base from placeable
-    # defense tower sprites.
+    # Slot images and shared base are not placeable tower sprites.
     non_placeable_assets = {
         "slot",
         "resource_slot",
@@ -446,14 +572,21 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
         for name, values in data["enemies"].items()
     }
 
-    tower_configs = {
-        name: TowerConfig(**values)
-        for name, values in data["towers"].items()
-    }
+    # Includes max_health for each defense tower.
+    tower_configs = _parse_tower_configs(data["towers"])
 
     resource_tower_config = _parse_resource_tower_config(
         data.get("resource_tower", {})
     )
+
+    king_tower_max_health = _parse_king_tower_max_health(
+        data.get("king_tower", {})
+    )
+
+    (
+        passive_income_interval,
+        passive_income_amount,
+    ) = _parse_economy_config(data.get("economy", {}))
 
     difficulty_configs = {
         name: DifficultyConfig(
@@ -461,10 +594,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
             base_health=values["base_health"],
             starting_resources=values["starting_resources"],
             waves=WaveConfig(**values["waves"]),
-            enemy_health_growth=values.get(
-                "enemy_health_growth",
-                0.0,
-            ),
+            enemy_health_growth=values.get("enemy_health_growth", 0.0),
         )
         for name, values in data["difficulty"].items()
     }
@@ -494,27 +624,23 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
         window_width=window["width"],
         window_height=window["height"],
         fps=window["fps"],
-
         rows=grid["rows"],
         cols=grid["cols"],
         tile_size=grid["tile_size"],
-
         map_path=_resolve_asset_path(map_assets["path"]),
         pathway_path=_resolve_asset_path(map_assets["pathway"]),
-
         enemy_assets=parsed_enemy_assets,
-
         defense_slot_path=defense_slot_path,
         resource_slot_path=resource_slot_path,
-
         defense_base_path=defense_base_path,
         defense_assets=tower_assets,
-
         king_tower_sprite_path=king_tower_sprite_path,
         resource_tower_sprite_path=resource_tower_sprite_path,
-
         enemies=enemy_configs,
         towers=tower_configs,
         resource_tower=resource_tower_config,
+        king_tower_max_health=king_tower_max_health,
         difficulties=difficulty_configs,
+        passive_income_interval=passive_income_interval,
+        passive_income_amount=passive_income_amount,
     )

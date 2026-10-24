@@ -1,8 +1,9 @@
-"""DefenseTower — a placeable combat structure with a rotating barrel.
+"""DefenseTower — a damageable, placeable combat structure.
 
-The tower scans for the nearest enemy within range, rotates its barrel
-to track it, and fires bursts of projectiles.  It extends ``Structure``
-for health and destruction state.
+The tower acquires the nearest living enemy within range, rotates its
+barrel toward the target, and fires projectiles in configurable bursts.
+
+Health and destruction state are inherited from Structure.
 """
 
 from __future__ import annotations
@@ -17,11 +18,7 @@ from src.game.entities.towers.projectile import Projectile
 
 
 class DefenseTower(Structure):
-    """Damageable defense structure with a stationary base and rotating barrel.
-
-    The tower inherits health, damage handling, and destruction state
-    from Structure. Its combat behavior remains specific to this class.
-    """
+    """Damageable defense tower with a stationary base and rotating barrel."""
 
     def __init__(
         self,
@@ -40,6 +37,7 @@ class DefenseTower(Structure):
         burst_interval: float = 0.12,
         max_health: float = 250.0,
     ) -> None:
+        """Initialize the tower and validate its configuration."""
         self._validate_combat_values(
             range_radius=range_radius,
             damage=damage,
@@ -49,6 +47,7 @@ class DefenseTower(Structure):
             base_size_scale=base_size_scale,
             shots_per_burst=shots_per_burst,
             burst_interval=burst_interval,
+            max_health=max_health,
         )
 
         if not isinstance(sprite, pygame.Surface):
@@ -59,19 +58,12 @@ class DefenseTower(Structure):
         ):
             raise TypeError("Base sprite must be a Surface or None.")
 
-        if (
-            len(slot_size) != 2
-            or any(
-                not math.isfinite(value) or value <= 0
-                for value in slot_size
-            )
-        ):
-            raise ValueError("Slot dimensions must be finite and positive.")
+        validated_slot_size = self._validate_slot_size(slot_size)
 
         super().__init__(
             structure_id=slot_id,
             position=position,
-            max_health=max_health,
+            max_health=float(max_health),
         )
 
         self.slot_id = slot_id
@@ -88,10 +80,7 @@ class DefenseTower(Structure):
             base_size_scale if base_size_scale is not None else size_scale
         )
 
-        self.slot_size = (
-            float(slot_size[0]),
-            float(slot_size[1]),
-        )
+        self.slot_size = validated_slot_size
 
         self.shots_per_burst = shots_per_burst
         self.burst_interval = float(burst_interval)
@@ -105,7 +94,7 @@ class DefenseTower(Structure):
         self.projectiles: list[Projectile] = []
         self.tower_type: str | None = None
 
-        # Render caches.
+        # Cached sprite surfaces avoid repeated scaling and rotation work.
         self._scaled_sprite: pygame.Surface | None = None
         self._scaled_sprite_size: tuple[int, int] | None = None
 
@@ -129,22 +118,28 @@ class DefenseTower(Structure):
         base_size_scale: float | None,
         shots_per_burst: int,
         burst_interval: float,
+        max_health: float,
     ) -> None:
-        """Validate the values controlling tower combat."""
-        for name, value in (
-            ("range_radius", range_radius),
-            ("damage", damage),
-            ("fire_rate", fire_rate),
-            ("projectile_speed", projectile_speed),
-            ("size_scale", size_scale),
-            ("burst_interval", burst_interval),
-        ):
+        """Validate combat parameters, scaling factors, and tower health."""
+        finite_values = {
+            "range_radius": range_radius,
+            "damage": damage,
+            "fire_rate": fire_rate,
+            "projectile_speed": projectile_speed,
+            "size_scale": size_scale,
+            "burst_interval": burst_interval,
+            "max_health": max_health,
+        }
+
+        for name, value in finite_values.items():
             if (
                 isinstance(value, bool)
                 or not isinstance(value, (int, float))
                 or not math.isfinite(value)
             ):
-                raise ValueError(f"{name} must be finite and numeric.")
+                raise ValueError(
+                    f"{name} must be a finite numeric value."
+                )
 
         if range_radius < 0:
             raise ValueError("Tower range cannot be negative.")
@@ -161,29 +156,67 @@ class DefenseTower(Structure):
         if size_scale <= 0:
             raise ValueError("Tower size scale must be positive.")
 
-        if base_size_scale is not None and (
-            not math.isfinite(base_size_scale) or base_size_scale <= 0
-        ):
-            raise ValueError("Base size scale must be finite and positive.")
+        if max_health <= 0:
+            raise ValueError(
+                "Tower maximum health must be finite and positive."
+            )
+
+        if burst_interval < 0:
+            raise ValueError(
+                "Burst interval must be finite and non-negative."
+            )
+
+        if base_size_scale is not None:
+            if (
+                isinstance(base_size_scale, bool)
+                or not isinstance(base_size_scale, (int, float))
+                or not math.isfinite(base_size_scale)
+                or base_size_scale <= 0
+            ):
+                raise ValueError(
+                    "Base size scale must be finite and positive."
+                )
 
         if (
             isinstance(shots_per_burst, bool)
             or not isinstance(shots_per_burst, int)
             or shots_per_burst < 1
         ):
-            raise ValueError("Shots per burst must be a positive integer.")
+            raise ValueError(
+                "Shots per burst must be a positive integer."
+            )
 
-        if burst_interval < 0:
-            raise ValueError("Burst interval cannot be negative.")
+    @staticmethod
+    def _validate_slot_size(
+        slot_size: tuple[float, float],
+    ) -> tuple[float, float]:
+        """Validate and normalize the tower's placement-slot dimensions."""
+        if not isinstance(slot_size, (tuple, list)) or len(slot_size) != 2:
+            raise ValueError(
+                "Slot dimensions must contain exactly two positive values."
+            )
+
+        for value in slot_size:
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or value <= 0
+            ):
+                raise ValueError(
+                    "Slot dimensions must be finite and positive."
+                )
+
+        return float(slot_size[0]), float(slot_size[1])
 
     # ------------------------------------------------------------------
-    # Combat
+    # Target acquisition and combat
 
     def _find_target(
         self,
         enemies: list[Enemy],
     ) -> Enemy | None:
-        """Select the nearest living enemy inside the tower's range."""
+        """Return the nearest living enemy within the tower's range."""
         target: Enemy | None = None
         nearest_distance = self.range_radius
 
@@ -200,7 +233,7 @@ class DefenseTower(Structure):
         return target
 
     def _fire(self, target: Enemy) -> None:
-        """Fire one projectile at a living enemy."""
+        """Fire one projectile at a valid target."""
         if not self.alive or not target.alive or target.reached_end:
             return
 
@@ -214,7 +247,7 @@ class DefenseTower(Structure):
         )
 
     def _finish_burst_shot(self) -> None:
-        """Schedule the next shot in a burst or the next firing cycle."""
+        """Schedule another burst shot or the next firing cycle."""
         self._burst_shots_remaining -= 1
 
         if self._burst_shots_remaining > 0:
@@ -231,14 +264,23 @@ class DefenseTower(Structure):
         delta_time: float,
         enemies: list[Enemy],
     ) -> None:
-        """Track enemies, fire bursts, and advance active projectiles."""
-        if not math.isfinite(delta_time) or delta_time < 0:
-            raise ValueError("Delta time must be finite and non-negative.")
+        """Track targets, fire projectiles, and update projectile movement."""
+        if (
+            isinstance(delta_time, bool)
+            or not isinstance(delta_time, (int, float))
+            or not math.isfinite(delta_time)
+            or delta_time < 0
+        ):
+            raise ValueError(
+                "Delta time must be finite and non-negative."
+            )
+
+        delta_time = float(delta_time)
 
         self.cooldown = max(0.0, self.cooldown - delta_time)
         self._burst_timer = max(0.0, self._burst_timer - delta_time)
 
-        # A destroyed tower cannot acquire targets or fire.
+        # Destroyed towers cannot acquire targets or start firing.
         if self.alive and self.fire_rate > 0:
             target = self._find_target(enemies)
 
@@ -246,7 +288,7 @@ class DefenseTower(Structure):
                 direction = target.position - self.position
 
                 if direction.length_squared() > 0.0:
-                    # Tower barrel art is assumed to face upward.
+                    # The barrel artwork is assumed to face upward.
                     self.angle = (
                         math.degrees(
                             math.atan2(-direction.y, direction.x)
@@ -271,8 +313,8 @@ class DefenseTower(Structure):
                     else:
                         self.cooldown = 1.0 / self.fire_rate
 
-        # Projectiles already fired remain in flight if their tower
-        # is destroyed. They still need to resolve their impacts.
+        # Already-fired projectiles finish their flight even if the tower
+        # that fired them is subsequently destroyed.
         for projectile in self.projectiles:
             projectile.update(delta_time)
 
@@ -283,13 +325,13 @@ class DefenseTower(Structure):
         ]
 
     # ------------------------------------------------------------------
-    # Rendering
+    # Sprite scaling and rotation
 
     def _get_scaled_base(
         self,
         target_size: tuple[int, int],
     ) -> pygame.Surface | None:
-        """Return a cached, unrotated base sprite."""
+        """Return the cached, unrotated base sprite."""
         if self.base_sprite is None:
             return None
 
@@ -309,7 +351,7 @@ class DefenseTower(Structure):
         self,
         target_size: tuple[int, int],
     ) -> pygame.Surface:
-        """Return the cached barrel sprite before rotation."""
+        """Return the cached barrel before rotation."""
         if (
             self._scaled_sprite is None
             or self._scaled_sprite_size != target_size
@@ -319,6 +361,8 @@ class DefenseTower(Structure):
                 target_size,
             )
             self._scaled_sprite_size = target_size
+
+            # A newly scaled sprite invalidates the rotation cache.
             self._rotated_sprite = None
             self._draw_angle = None
 
@@ -344,6 +388,9 @@ class DefenseTower(Structure):
 
         return self._rotated_sprite
 
+    # ------------------------------------------------------------------
+    # Rendering
+
     def _draw_health_bar(
         self,
         surface: pygame.Surface,
@@ -351,7 +398,7 @@ class DefenseTower(Structure):
         top_y: int,
         sprite_width: int,
     ) -> None:
-        """Display damage sustained by the tower."""
+        """Draw the tower's health bar when it has sustained damage."""
         if self.health >= self.max_health:
             return
 
@@ -361,22 +408,32 @@ class DefenseTower(Structure):
         bar_x = round(center_x - bar_width / 2)
         bar_y = top_y - 7
 
+        # Background.
         pygame.draw.rect(
             surface,
             (55, 25, 25),
             (bar_x, bar_y, bar_width, bar_height),
         )
 
-        pygame.draw.rect(
-            surface,
-            (65, 220, 90),
-            (
-                bar_x,
-                bar_y,
-                round(bar_width * self.health_fraction),
-                bar_height,
-            ),
+        # Remaining health.
+        health_fraction = max(
+            0.0,
+            min(1.0, self.health_fraction),
         )
+
+        health_width = round(bar_width * health_fraction)
+
+        if health_width > 0:
+            pygame.draw.rect(
+                surface,
+                (65, 220, 90),
+                (
+                    bar_x,
+                    bar_y,
+                    health_width,
+                    bar_height,
+                ),
+            )
 
     def draw(
         self,
@@ -385,8 +442,13 @@ class DefenseTower(Structure):
         map_height: float,
         show_range: bool = False,
     ) -> None:
-        """Draw the tower, its health bar, and any active projectiles."""
-        if map_width <= 0 or map_height <= 0:
+        """Draw the tower, optional attack range, health bar, and projectiles."""
+        if (
+            not math.isfinite(map_width)
+            or not math.isfinite(map_height)
+            or map_width <= 0
+            or map_height <= 0
+        ):
             return
 
         scale_x = surface.get_width() / map_width
@@ -401,6 +463,7 @@ class DefenseTower(Structure):
         rendered_width = 0
 
         if self.alive:
+            # Draw the optional attack-range indicator.
             if show_range:
                 range_surface = pygame.Surface(
                     surface.get_size(),
@@ -410,32 +473,29 @@ class DefenseTower(Structure):
                 range_width = round(self.range_radius * scale_x)
                 range_height = round(self.range_radius * scale_y)
 
+                ellipse_rect = (
+                    center[0] - range_width,
+                    center[1] - range_height,
+                    range_width * 2,
+                    range_height * 2,
+                )
+
                 pygame.draw.ellipse(
                     range_surface,
                     (80, 180, 255, 35),
-                    (
-                        center[0] - range_width,
-                        center[1] - range_height,
-                        range_width * 2,
-                        range_height * 2,
-                    ),
+                    ellipse_rect,
                 )
 
                 pygame.draw.ellipse(
                     range_surface,
                     (80, 180, 255, 110),
-                    (
-                        center[0] - range_width,
-                        center[1] - range_height,
-                        range_width * 2,
-                        range_height * 2,
-                    ),
+                    ellipse_rect,
                     width=1,
                 )
 
                 surface.blit(range_surface, (0, 0))
 
-            # Draw the base first, without any turret rotation.
+            # Draw the stationary base first.
             if self.base_sprite is not None:
                 base_size = (
                     max(
@@ -461,13 +521,14 @@ class DefenseTower(Structure):
                 if base is not None:
                     base_rect = base.get_rect(center=center)
                     surface.blit(base, base_rect)
+
                     sprite_top = min(sprite_top, base_rect.top)
                     rendered_width = max(
                         rendered_width,
                         base_rect.width,
                     )
 
-            # Draw the barrel above the base.
+            # Draw the rotating barrel over the base.
             barrel_size = (
                 max(
                     1,
@@ -504,8 +565,7 @@ class DefenseTower(Structure):
                 rendered_width,
             )
 
-        # Already-fired projectiles are allowed to finish their flight,
-        # even when the source tower has been destroyed.
+        # Projectiles already in flight can finish after tower destruction.
         for projectile in self.projectiles:
             projectile.draw(
                 surface,

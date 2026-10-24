@@ -1,33 +1,30 @@
+
 """Tank enemy variants (light and heavy).
 
-Both variants use this single class.  Their stats (speed, health,
-damage) differ via ``EnemyConfig`` — no subclassing required.
-
-Tanks use separate chassis (base) and gun sprites.  The chassis rotates
-with movement direction; the gun turret can aim independently.  When a
-tank reaches the end of its route it exits without attacking King Towers.
+Tanks follow their assigned Tiled routes without chasing targets.
+Their chassis follows the movement direction, while the turret aims
+independently at nearby defense towers or King Towers.
 """
 
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 
 import pygame
 
 from src.game.entities.enemies.base import Enemy
 from src.game.entities.enemies.config import EnemyConfig
+from src.game.entities.structure import Structure
+from src.game.entities.towers.projectile import Projectile
 from src.game.terrain.pathway import Pathway
 
 
 class Tank(Enemy):
-    """Armoured tank with an independently-aiming gun turret.
+    """Tank with independent turret aiming and structure combat."""
 
-    The light and heavy tank variants share this class — they are
-    distinguished only by the values in their ``EnemyConfig``.
-
-    Tanks follow tank routes.  When they reach the route endpoint they
-    exit the map (``exited_route = True``) instead of attacking King Towers.
-    """
+    PROJECTILE_SPEED = 320.0
+    MINIMUM_ATTACK_RANGE = 300.0
 
     def __init__(
         self,
@@ -45,20 +42,24 @@ class Tank(Enemy):
 
         self.gun_angle = 0.0
         self._gun_target: pygame.Vector2 | None = None
+        self._attack_target: Structure | None = None
+
+        self._attack_cooldown = 0.0
+        self.projectiles: list[Projectile] = []
 
     # ------------------------------------------------------------------
-    # Subclass identity
+    # Identity
 
     @property
     def is_tank(self) -> bool:
-        """Always ``True`` for Tank instances."""
+        """Identify this enemy as a tank."""
         return True
 
     # ------------------------------------------------------------------
-    # Gun aiming
+    # Turret aiming
 
     def aim_at(self, target_position: pygame.Vector2) -> None:
-        """Aim the gun turret independently at a world-space position."""
+        """Aim the turret at a world-space position."""
         target = pygame.Vector2(target_position)
 
         if not math.isfinite(target.x) or not math.isfinite(target.y):
@@ -68,12 +69,13 @@ class Tank(Enemy):
         self._update_gun_angle()
 
     def clear_gun_target(self) -> None:
-        """Return the gun turret to following the chassis direction."""
+        """Make the turret follow the chassis direction."""
         self._gun_target = None
+        self._attack_target = None
         self._update_gun_angle()
 
     def _update_gun_angle(self) -> None:
-        """Recalculate the turret angle from the current target or direction."""
+        """Update the turret angle without affecting chassis movement."""
         if self._gun_target is None:
             self.gun_angle = self._direction_angle(self.direction)
             return
@@ -84,30 +86,130 @@ class Tank(Enemy):
             self.gun_angle = self._direction_angle(offset)
 
     # ------------------------------------------------------------------
-    # Movement overrides
+    # Combat
+
+    def update_combat(
+        self,
+        delta_time: float,
+        defense_towers: Sequence[Structure],
+        king_towers: Sequence[Structure] = (),
+        resource_towers: Sequence[Structure] = (),
+    ) -> None:
+        """Attack nearby defense, resource, or King Towers.
+
+        Tanks continue following their assigned routes. Their turrets
+        independently target the nearest living structure within range.
+        """
+        if (
+            isinstance(delta_time, bool)
+            or not isinstance(delta_time, (int, float))
+            or not math.isfinite(delta_time)
+            or delta_time < 0
+        ):
+            raise ValueError(
+                "Delta time must be finite and non-negative."
+            )
+
+        if not self.alive:
+            self.clear_gun_target()
+            self.projectiles.clear()
+            return
+
+        # Advance projectiles already in flight.
+        for projectile in self.projectiles:
+            projectile.update(delta_time)
+
+        self.projectiles = [
+            projectile
+            for projectile in self.projectiles
+            if projectile.alive
+        ]
+
+        # Advance weapon cooldown.
+        self._attack_cooldown = max(
+            0.0,
+            self._attack_cooldown - delta_time,
+        )
+
+        attack_range = max(
+            float(self.config.attack_range),
+            self.MINIMUM_ATTACK_RANGE,
+        )
+        range_squared = attack_range * attack_range
+
+        # All three structure types are valid targets.
+        targets = (
+            *defense_towers,
+            *king_towers,
+            *resource_towers,
+        )
+
+        candidates = [
+            target
+            for target in targets
+            if target.alive
+            and not target.destroyed
+            and (
+                target.position - self.position
+            ).length_squared() <= range_squared
+        ]
+
+        if not candidates:
+            self.clear_gun_target()
+            return
+
+        # Select the nearest living structure in range.
+        target = min(
+            candidates,
+            key=lambda structure: (
+                structure.position - self.position
+            ).length_squared(),
+        )
+
+        self._attack_target = target
+        self.aim_at(target.position)
+
+        # Fire a projectile when the weapon is ready.
+        if self._attack_cooldown <= 0.0:
+            self.projectiles.append(
+                Projectile(
+                    position=pygame.Vector2(self.position),
+                    target=target,
+                    speed=self.PROJECTILE_SPEED,
+                    damage=self.config.attack_damage,
+                )
+            )
+
+            self._attack_cooldown = self.config.attack_interval
+
+    # ------------------------------------------------------------------
+    # Movement
 
     def _follow_path(self, delta_time: float) -> None:
-        """Move along the route and keep the gun angle synchronised."""
+        """Follow the assigned route and update the turret orientation."""
         super()._follow_path(delta_time)
         self._update_gun_angle()
 
     def _on_path_finished(self) -> None:
-        """Exit the map when the route endpoint is reached."""
+        """Exit the route without attacking by collision."""
         self.exited_route = True
         self.alive = False
+        self.clear_gun_target()
+        self.projectiles.clear()
 
     # ------------------------------------------------------------------
-    # Damage override
+    # Damage
 
     def take_damage(self, amount: float) -> None:
-        """Apply damage; clear the gun target when the tank is destroyed."""
+        """Take damage and clear combat state when destroyed."""
         super().take_damage(amount)
 
         if not self.alive:
             self.clear_gun_target()
+            self.projectiles.clear()
 
     # ------------------------------------------------------------------
-    # Rendering override
+    # Rendering
 
     def _render_sprite_to_surface(
         self,
@@ -116,10 +218,9 @@ class Tank(Enemy):
         scale_y: float,
         screen_position: tuple[int, int],
     ) -> tuple[int, int]:
-        """Composite chassis and gun layers; return (sprite_top, sprite_width)."""
+        """Rotate the chassis with movement and turret toward its target."""
         chassis_angle = self._direction_angle(self.direction)
 
-        # Chassis follows the movement direction.
         rendered_base = self._get_rendered_sprite(
             "tank_base",
             self.base_sprite,
@@ -128,7 +229,7 @@ class Tank(Enemy):
             scale_y,
         )
 
-        # Gun rotates independently toward the target.
+        # The turret rotates independently of the chassis.
         rendered_gun = self._get_rendered_sprite(
             "tank_gun",
             self.gun_sprite,

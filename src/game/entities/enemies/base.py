@@ -8,12 +8,10 @@ any variant-specific sprite logic.
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
 
 import pygame
 
 from src.game.entities.enemies.config import EnemyConfig
-from src.game.entities.king_tower import KingTower
 from src.game.terrain.pathway import Pathway
 
 
@@ -67,13 +65,9 @@ class Enemy:
         # Enemy source sprites face right (East).
         self.direction = pygame.Vector2(1.0, 0.0)
 
-        # King Tower combat state.
-        self.target_structure: KingTower | None = None
+        # Lifecycle flags used by Simulation for rewards and route exits.
         self.suicide_attacked = False
         self.exited_route = False
-
-        # Allow an attack immediately upon reaching attack range.
-        self._attack_elapsed = config.attack_interval
 
         # Separate render caches prevent redundant scaling and rotation.
         self._draw_cache: dict[
@@ -94,27 +88,6 @@ class Enemy:
         return False
 
     # ------------------------------------------------------------------
-    # Shared properties
-
-    @property
-    def has_structure_target(self) -> bool:
-        """Whether this enemy currently holds a King Tower target."""
-        return self.target_structure is not None
-
-    @property
-    def is_attacking(self) -> bool:
-        """Whether the current target is alive and within attack range."""
-        target = self.target_structure
-
-        if target is None or not self._is_living_king_tower(target):
-            return False
-
-        return (
-            self.position.distance_to(target.position)
-            <= self.config.attack_range
-        )
-
-    # ------------------------------------------------------------------
     # Static helpers
 
     @staticmethod
@@ -124,48 +97,7 @@ class Enemy:
             math.atan2(-direction.y, direction.x)
         )
 
-    @staticmethod
-    def _is_living_king_tower(target: KingTower) -> bool:
-        """Return whether a King Tower can still receive damage."""
-        return target.alive and not target.destroyed
-
-    @staticmethod
-    def _tower_id(tower: KingTower) -> str:
-        """Provide a stable identifier for target tie-breaking."""
-        return str(tower.structure_id)
-
     # ------------------------------------------------------------------
-    # Target selection
-
-    def _select_king_tower(
-        self,
-        king_targets: Sequence[KingTower],
-    ) -> KingTower | None:
-        """Select the nearest surviving King Tower deterministically."""
-        candidates: list[tuple[float, str, KingTower]] = []
-
-        for tower in king_targets:
-            if not self._is_living_king_tower(tower):
-                continue
-
-            distance_squared = self.position.distance_squared_to(
-                tower.position
-            )
-
-            candidates.append(
-                (
-                    distance_squared,
-                    self._tower_id(tower),
-                    tower,
-                )
-            )
-
-        if not candidates:
-            return None
-
-        candidates.sort(key=lambda item: (item[0], item[1]))
-        return candidates[0][2]
-
     # ------------------------------------------------------------------
     # Movement
 
@@ -211,8 +143,6 @@ class Enemy:
     def update(
         self,
         delta_time: float,
-        *,
-        king_targets: Sequence[KingTower] = (),
     ) -> None:
         """Follow the assigned route and trigger end-of-route logic."""
         if (
@@ -256,7 +186,6 @@ class Enemy:
 
         if self.health <= 0.0:
             self.alive = False
-            self.target_structure = None
 
     # ------------------------------------------------------------------
     # Rendering

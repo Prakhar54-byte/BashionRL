@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+
 import pygame
 
 from src.game.config import load_config

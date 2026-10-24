@@ -60,7 +60,7 @@ def draw_resource_slots(
 ) -> None:
     """Draw empty resource-slot icons using the shared slot texture."""
     manager = simulation.resource_slots
-    slot_image = simulation.defense_slots.slot_image
+    slot_image = simulation.resource_slots.slot_image
 
     if slot_image is None:
         return

@@ -11,7 +11,7 @@ import pygame
 
 from src.game.config import GameConfig, load_config
 from src.game.entities.defense_tower import DefenseTower
-from src.game.entities.enemy import Enemy
+from src.game.entities.enemy import Enemy, Soldier, Tank
 from src.game.entities.king_tower import KingTower
 from src.game.entities.resource_tower import ResourceTower
 from src.game.rendering.asset_loader import AssetLoader
@@ -103,7 +103,7 @@ class Simulation:
 
         self.resource_slots = DefenseSlots(
             map_path,
-            slot_image_path,
+            self.config.resource_slot_path,
             layer_name="resource_slots",
             load_image=render_assets,
         )
@@ -434,13 +434,28 @@ class Simulation:
         route_name = self._rng.choice(route_names)
         pathway = routes[route_name]
 
-        enemy = Enemy(
-            pathway=pathway,
-            sprite=self.enemy_sprites[enemy_type],
-            config=scaled_config,
-            base_sprite=self.enemy_base_sprites.get(enemy_type),
-            gun_sprite=self.enemy_gun_sprites.get(enemy_type),
-        )
+        if asset_config.is_tank:
+            base_sprite = self.enemy_base_sprites.get(enemy_type)
+            gun_sprite = self.enemy_gun_sprites.get(enemy_type)
+
+            if base_sprite is None or gun_sprite is None:
+                raise ValueError(
+                    f"Tank '{enemy_type}' is missing base or gun sprites."
+                )
+
+            enemy: Enemy = Tank(
+                pathway=pathway,
+                sprite=self.enemy_sprites[enemy_type],
+                config=scaled_config,
+                base_sprite=base_sprite,
+                gun_sprite=gun_sprite,
+            )
+        else:
+            enemy = Soldier(
+                pathway=pathway,
+                sprite=self.enemy_sprites[enemy_type],
+                config=scaled_config,
+            )
 
         enemy.enemy_type = enemy_type
         enemy.route_name = route_name
@@ -449,7 +464,7 @@ class Simulation:
         self.state.register_spawn()
 
     def tick(self) -> None:
-        """Advance the simulation by one fixed physics timestep."""
+        """Advance one fixed physics timestep."""
         if self.state.is_terminal:
             return
 
@@ -462,51 +477,124 @@ class Simulation:
             spawn_enemy=self._spawn_enemy,
         )
 
-        # Move enemies on their assigned routes.
+        # Move enemies strictly along their assigned routes.
         for enemy in self.enemies:
+            if not enemy.alive:
+                continue
+
+            previous_position = enemy.position.copy()
+
+            # No King Tower targets are passed: enemies do not chase.
             enemy.update(self.timestep)
 
-        # Process leaked enemies using the existing base-health rule.
-        for enemy in self.enemies:
-            if enemy.alive and enemy.reached_end:
-                self.state.register_leak(enemy.config.leak_damage)
+            # Tanks only follow their tank routes. They never suicide-attack
+            # King Towers through this collision handler.
+            if enemy.is_tank:
+                continue
+
+            # Detect the soldier's movement segment entering a King Tower slot.
+            start = (
+                round(previous_position.x),
+                round(previous_position.y),
+            )
+            end = (
+                round(enemy.position.x),
+                round(enemy.position.y),
+            )
+
+            for slot in self.king_tower_slots.slots:
+                # Inflate slightly so edge contact is not missed due to
+                # pixel rounding at the boundary.
+                slot_rect = slot.rect.inflate(2, 2)
+
+                crossed_slot = bool(slot_rect.clipline(start, end))
+
+                # Also handle an enemy already positioned inside the slot.
+                if not crossed_slot:
+                    crossed_slot = slot_rect.collidepoint(end)
+
+                if not crossed_slot:
+                    continue
+
+                # Slot ID maps directly to the King Tower placed there.
+                king_tower = self._king_towers_by_id.get(slot.slot_id)
+
+                if king_tower is None or not king_tower.alive:
+                    continue
+
+                # One suicide hit, then immediately remove the soldier.
+                king_tower.take_damage(enemy.config.attack_damage)
+                enemy.suicide_attacked = True
                 enemy.alive = False
+                enemy.target_structure = None
+                enemy.clear_gun_target()
 
-        # Defense towers attack enemies and update their projectiles.
-        if not self.state.is_terminal:
-            for tower in self.towers:
-                if tower.alive:
-                    tower.update(self.timestep, self.enemies)
+                break
 
-        # Resource towers generate resources at their configured intervals.
-        # Destroyed resource towers return zero and stop generating income.
-        if not self.state.is_terminal:
-            for tower in self.resource_towers:
+            # Register King Tower destruction immediately.
+            self._sync_king_tower_state()
+
+            if self.state.is_terminal:
+                return
+
+        # Defense towers still attack enemies and update their projectiles.
+        for tower in self.towers:
+            if tower.alive:
+                tower.update(self.timestep, self.enemies)
+
+        # Release slots occupied by destroyed defense towers.
+        destroyed_slot_ids = {
+            tower.slot_id
+            for tower in self.towers
+            if tower.destroyed
+        }
+
+        if destroyed_slot_ids:
+            for slot in self.defense_slots.slots:
+                if slot.slot_id in destroyed_slot_ids:
+                    slot.occupied = False
+
+            self.towers[:] = [
+                tower
+                for tower in self.towers
+                if not tower.destroyed
+            ]
+
+        # Resource production is independent of enemy movement.
+        for tower in self.resource_towers:
+            if tower.alive:
                 earned = tower.update(self.timestep)
 
                 if earned > 0:
                     self.state.resources.earn(earned)
 
-        # Advance repair timers and synchronize King Tower destruction.
-        if not self.state.is_terminal:
-            for tower in self.king_towers:
-                tower.update(self.timestep)
+        # Update timed King Tower repairs.
+        for tower in self.king_towers:
+            tower.update(self.timestep)
 
-            self._sync_king_tower_state()
+        self._sync_king_tower_state()
 
-        # Grant rewards for enemies killed by defense towers.
+        if self.state.is_terminal:
+            return
+
+        # Reward real kills, not suicide attacks or tanks leaving their routes.
         for enemy in self.enemies:
-            if not enemy.alive and not enemy.reached_end:
+            if (
+                not enemy.alive
+                and not enemy.suicide_attacked
+                and not enemy.exited_route
+            ):
                 self.state.register_kill(enemy.config.kill_reward)
 
-        # Remove killed and leaked enemies.
+        # Remove dead enemies. Reaching a route endpoint alone does not
+        # cause global base damage or turn a living soldier into a leak.
         self.enemies[:] = [
             enemy
             for enemy in self.enemies
-            if enemy.alive and not enemy.reached_end
+            if enemy.alive
         ]
 
-        # Win after the final configured wave has been cleared.
+        # Victory requires the final wave to be cleared.
         if (
             not self.state.is_terminal
             and self.director.wave_number > 0

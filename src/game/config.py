@@ -28,11 +28,9 @@ class EnemyAssetConfig:
         has_base = self.base_path is not None
         has_gun = self.gun_path is not None
 
-        # Ordinary soldiers use one complete sprite.
         if has_sprite and not has_base and not has_gun:
             return
 
-        # Tanks consist of a chassis and a separately rotating gun.
         if not has_sprite and has_base and has_gun:
             return
 
@@ -49,7 +47,7 @@ class EnemyAssetConfig:
 
 @dataclass(frozen=True, slots=True)
 class TowerConfig:
-    """Combat, economy, rendering, and firing configuration for a defense tower."""
+    """Combat, economy, rendering, and firing configuration."""
 
     name: str
     cost: int
@@ -115,7 +113,7 @@ class TowerConfig:
 
 @dataclass(frozen=True, slots=True)
 class ResourceTowerConfig:
-    """Economy, durability, and rendering configuration for a resource tower."""
+    """Economy, durability, and rendering configuration."""
 
     name: str = "Resource Tower"
     cost: int = 125
@@ -246,15 +244,14 @@ class GameConfig:
 
     enemy_assets: dict[str, EnemyAssetConfig]
 
+    # The two slot types have independent images.
     defense_slot_path: Path
+    resource_slot_path: Path
+
     defense_base_path: Path | None
     defense_assets: dict[str, Path]
 
-    # Shared sprite used by the three King Towers.
     king_tower_sprite_path: Path
-
-    # Optional sprite for the resource tower. The tower can use its
-    # built-in placeholder drawing until an asset is configured.
     resource_tower_sprite_path: Path | None
 
     enemies: dict[str, EnemyConfig]
@@ -278,7 +275,7 @@ def _parse_enemy_assets(
     parsed: dict[str, EnemyAssetConfig] = {}
 
     for enemy_name, asset_data in enemy_assets.items():
-        # Backward compatibility with the old TOML format:
+        # Backward compatibility with the old format:
         # enemy1 = "Assets/Main/Entities/Enemies/enemy1.png"
         if isinstance(asset_data, str):
             parsed[enemy_name] = EnemyAssetConfig(
@@ -329,7 +326,7 @@ def _parse_enemy_assets(
 def _parse_resource_tower_config(
     values: dict[str, Any],
 ) -> ResourceTowerConfig:
-    """Parse resource tower settings while applying defaults to omitted keys."""
+    """Parse resource tower settings and apply defaults for omitted keys."""
     if not isinstance(values, dict):
         raise ValueError(
             "The [resource_tower] configuration must be a TOML table."
@@ -355,13 +352,12 @@ def _parse_resource_tower_config(
 
 
 def load_config(path: Path = CONFIG_PATH) -> GameConfig:
-    """Load and validate game configuration from a TOML file."""
+    """Load and validate game configuration from TOML."""
     config_path = Path(path).resolve()
 
     with config_path.open("rb") as file:
         data = tomllib.load(file)
 
-    # Top-level configuration sections.
     window = data["window"]
     grid = data["grid"]
     assets = data["assets"]
@@ -370,28 +366,37 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
     enemy_assets = assets["enemies"]
     defense_assets = assets["defense"]
 
-    # Parse soldier and tank assets.
+    # Validate all slot image entries before resolving paths.
+    required_defense_assets = {
+        "slot",
+        "resource_slot",
+    }
+    missing_slot_assets = required_defense_assets - set(defense_assets)
+
+    if missing_slot_assets:
+        raise ValueError(
+            "Missing required slot assets in [assets.defense]: "
+            f"{sorted(missing_slot_assets)}."
+        )
+
+    defense_slot_path = _resolve_asset_path(defense_assets["slot"])
+    resource_slot_path = _resolve_asset_path(
+        defense_assets["resource_slot"]
+    )
+
     parsed_enemy_assets = _parse_enemy_assets(enemy_assets)
 
     # King Tower sprite: [assets.king] king = "..."
     king_assets = assets.get("king")
 
-    if not isinstance(king_assets, dict):
-        raise ValueError(
-            "Missing [assets.king] configuration in game.toml."
-        )
-
-    if "king" not in king_assets:
+    if not isinstance(king_assets, dict) or "king" not in king_assets:
         raise ValueError(
             "Missing 'king' asset in [assets.king] in game.toml."
         )
 
-    king_tower_sprite_path = _resolve_asset_path(
-        king_assets["king"]
-    )
+    king_tower_sprite_path = _resolve_asset_path(king_assets["king"])
 
-    # An optional [assets.resource_tower] sprite can be configured later.
-    # When omitted, ResourceTower uses its built-in placeholder artwork.
+    # Resource Tower sprite is optional; its entity can render a placeholder.
     resource_assets = assets.get("resource_tower", {})
 
     if not isinstance(resource_assets, dict):
@@ -399,9 +404,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
             "[assets.resource_tower] must be a TOML table."
         )
 
-    unexpected_resource_asset_keys = (
-        set(resource_assets) - {"sprite"}
-    )
+    unexpected_resource_asset_keys = set(resource_assets) - {"sprite"}
 
     if unexpected_resource_asset_keys:
         raise ValueError(
@@ -410,27 +413,32 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
         )
 
     resource_sprite = resource_assets.get("sprite")
-
     resource_tower_sprite_path = (
         _resolve_asset_path(resource_sprite)
         if resource_sprite is not None
         else None
     )
 
-    # The cannon base is a shared visual asset, not a placeable tower.
+    # Shared stationary base sprite used by defense towers.
     base_asset = defense_assets.get("cannon_base")
-
     defense_base_path = (
         _resolve_asset_path(base_asset)
         if base_asset is not None
         else None
     )
 
-    # Keep only placeable defense tower sprites in this dictionary.
+    # Exclude both slot images and the shared cannon base from placeable
+    # defense tower sprites.
+    non_placeable_assets = {
+        "slot",
+        "resource_slot",
+        "cannon_base",
+    }
+
     tower_assets = {
         name: _resolve_asset_path(asset_path)
         for name, asset_path in defense_assets.items()
-        if name not in {"slot", "cannon_base"}
+        if name not in non_placeable_assets
     }
 
     # Parse gameplay configurations.
@@ -462,7 +470,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
         for name, values in data["difficulty"].items()
     }
 
-    # Ensure each enemy configuration has a matching asset definition.
+    # Every configured enemy must have exactly one matching asset definition.
     if set(enemy_configs) != set(parsed_enemy_assets):
         raise ValueError(
             "Enemy configurations must match enemy asset definitions. "
@@ -472,7 +480,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
             f"{sorted(set(parsed_enemy_assets) - set(enemy_configs))}."
         )
 
-    # Ensure each tower configuration has a matching placeable sprite.
+    # Every placeable defense tower must have exactly one matching sprite.
     if set(tower_configs) != set(tower_assets):
         raise ValueError(
             "Tower configurations must match tower assets. "
@@ -480,12 +488,6 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
             f"{sorted(set(tower_configs) - set(tower_assets))}; "
             f"unused assets: "
             f"{sorted(set(tower_assets) - set(tower_configs))}."
-        )
-
-    # Validate required asset entries.
-    if "slot" not in defense_assets:
-        raise ValueError(
-            "Missing 'slot' asset in [assets.defense] in game.toml."
         )
 
     return GameConfig(
@@ -503,9 +505,9 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
 
         enemy_assets=parsed_enemy_assets,
 
-        defense_slot_path=_resolve_asset_path(
-            defense_assets["slot"]
-        ),
+        defense_slot_path=defense_slot_path,
+        resource_slot_path=resource_slot_path,
+
         defense_base_path=defense_base_path,
         defense_assets=tower_assets,
 

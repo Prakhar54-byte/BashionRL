@@ -30,6 +30,7 @@ gun = "Assets/Main/Entities/Enemies/heavy_tank_gun.png"
 
 [assets.defense]
 slot = "Assets/Main/Entities/Defense/slot.png"
+resource_slot = "Assets/Main/Entities/Defense/resource_slot.png"
 cannon = "Assets/Main/Entities/Defense/cannon.png"
 double_cannon = "Assets/Main/Entities/Defense/double_cannon.png"
 cannon_base = "Assets/Main/Entities/Defense/cannon_base.png"

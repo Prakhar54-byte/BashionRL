@@ -20,8 +20,12 @@ def test_gymnasium_api_and_seed_reproducibility():
     env = BastionEnv()
     check_env(env, skip_render_check=True)
     observation, _ = env.reset(seed=13)
-    assert observation.shape == (547,)
-    assert env.action_space.n == 63
+    sim = env.simulation
+    expected_size = 8 + len(sim.defense_slots.slots) * 5 + env.max_enemies * 6
+    assert observation.shape == (expected_size,)
+    assert env.action_space.n == (
+        1 + len(sim.defense_slots.slots) * len(sim.tower_types)
+    )
     assert env.observation_space.contains(observation)
     for _ in range(50):
         first = env.step(0)
@@ -90,21 +94,22 @@ def test_timeout_is_truncation_and_requires_reset():
 def test_loss_reward_is_emitted_once():
     env = BastionEnv(max_steps=1)
     env.reset(seed=0)
-    env.simulation.state.base_health = 10
-    env.simulation._spawn_enemy("enemy1")
-    env.simulation.enemies[0].reached_end = True
+    for tower in env.simulation.king_towers:
+        tower.destroy()
+
     _, reward, terminated, truncated, info = env.step(0)
+
     assert terminated and not truncated
     assert info["reward_terms"] == {
         "kills": 0,
-        "base_damage": -1,
+        "base_damage": 0,
         "waves": 0,
         "outcome": -20,
         "invalid_action": 0,
         "spending": 0,
     }
     assert not info["survived"]
-    assert reward == -21
+    assert reward == pytest.approx(-20)
     with pytest.raises(RuntimeError):
         env.step(0)
 
@@ -129,7 +134,7 @@ def test_win_reward_and_fresh_observation_buffers():
 def test_heuristic_scores_cover_all_actions():
     env = BastionEnv()
     scores = coverage_scores(env)
-    assert scores.shape == (63,)
+    assert scores.shape == (env.action_space.n,)
     assert np.isfinite(scores).all() and max(scores) > 0
 
 
@@ -170,9 +175,14 @@ def test_model_save_load_and_manifest_guard(tmp_path):
 
 def test_enemy_rows_preserve_positions_health_and_padding():
     env = BastionEnv()
-    initial, _ = env.reset(seed=0)
-    np.testing.assert_array_equal(initial[163:], 0)
+    env.reset(seed=0)
     sim = env.simulation
+    sim.enemies.clear()
+
+    enemy_offset = 8 + len(sim.defense_slots.slots) * 5
+    initial = env.observation()
+    np.testing.assert_array_equal(initial[enemy_offset:], 0)
+
     sim._spawn_enemy("enemy1")
     sim._spawn_enemy("enemy2")
     first, second = sim.enemies
@@ -181,7 +191,7 @@ def test_enemy_rows_preserve_positions_health_and_padding():
     second.position = start.lerp(end, 0.75)
     second.health = 80
     observation = env.observation()
-    rows = observation[163:].reshape(64, 6)
+    rows = observation[enemy_offset:].reshape(env.max_enemies, 6)
     np.testing.assert_allclose(
         rows[0],
         [
@@ -202,13 +212,17 @@ def test_enemy_rows_preserve_positions_health_and_padding():
 def test_enemy_overflow_is_bounded_and_reported():
     env = BastionEnv()
     env.reset(seed=0)
+    sim = env.simulation
+    sim.enemies.clear()
     for _ in range(65):
-        env.simulation._spawn_enemy("enemy1")
-    start, end = env.simulation.pathway.points[:2]
-    env.simulation.enemies[-1].position = start.lerp(end, 0.5)
+        sim._spawn_enemy("enemy1")
+    start, end = sim.pathway.points[:2]
+    sim.enemies[-1].position = start.lerp(end, 0.5)
+
     observation = env.observation()
-    assert observation.shape == (547,)
-    rows = observation[163:].reshape(64, 6)
+    enemy_offset = 8 + len(sim.defense_slots.slots) * 5
+    assert observation.shape == env.observation_space.shape
+    rows = observation[enemy_offset:].reshape(env.max_enemies, 6)
     assert rows[0, 5] > 0
     assert (rows[:, 0] == 1).all()
     assert env.info()["enemies_omitted"] == 1
@@ -375,9 +389,9 @@ def test_rendered_ticks_match_headless_steps():
 def test_rendered_ticks_stop_immediately_on_defeat():
     env = BastionEnv()
     env.reset(seed=0)
-    env.simulation.state.base_health = 10
-    env.simulation._spawn_enemy("enemy1")
-    env.simulation.enemies[0].reached_end = True
+    for tower in env.simulation.king_towers:
+        tower.destroy()
+
     results = list(env.step_ticks(0))
     assert len(results) == env.simulation.ticks == 1
     assert results[0][2] and not results[0][3]

@@ -6,8 +6,75 @@ import math
 import pygame
 
 from src.game.entities.enemy import Enemy
-from src.game.entities.projectile import Projectile
 from src.game.entities.structure import Structure
+
+
+class Projectile:
+    """A projectile that travels toward a selected enemy."""
+
+    def __init__(
+        self,
+        position: pygame.Vector2,
+        target: Enemy,
+        speed: float,
+        damage: float,
+    ) -> None:
+        if not math.isfinite(speed) or speed <= 0:
+            raise ValueError("Projectile speed must be finite and positive.")
+
+        if not math.isfinite(damage) or damage < 0:
+            raise ValueError("Projectile damage must be finite and non-negative.")
+
+        self.position = pygame.Vector2(position)
+        self.target = target
+        self.speed = speed
+        self.damage = damage
+        self.alive = True
+
+    def update(self, delta_time: float) -> None:
+        """Move the projectile and damage its target on impact."""
+        if not self.alive:
+            return
+
+        if not math.isfinite(delta_time) or delta_time < 0:
+            raise ValueError("Delta time must be finite and non-negative.")
+
+        if not self.target.alive or self.target.reached_end:
+            self.alive = False
+            return
+
+        offset = self.target.position - self.position
+        distance = offset.length()
+        travel_distance = self.speed * delta_time
+
+        if distance <= max(6.0, travel_distance):
+            self.target.take_damage(self.damage)
+            self.alive = False
+            return
+
+        if distance > 0.0:
+            self.position += offset / distance * travel_distance
+
+    def draw(
+        self,
+        surface: pygame.Surface,
+        map_width: float,
+        map_height: float,
+    ) -> None:
+        """Render the projectile using map-space coordinates."""
+        if not self.alive or map_width <= 0 or map_height <= 0:
+            return
+
+        scale_x = surface.get_width() / map_width
+        scale_y = surface.get_height() / map_height
+
+        point = (
+            round(self.position.x * scale_x),
+            round(self.position.y * scale_y),
+        )
+
+        pygame.draw.circle(surface, (255, 220, 90), point, 4)
+        pygame.draw.circle(surface, (255, 255, 220), point, 2)
 
 
 class DefenseTower(Structure):
@@ -16,8 +83,6 @@ class DefenseTower(Structure):
     The tower inherits health, damage handling, and destruction state
     from Structure. Its combat behavior remains specific to this class.
     """
-
-    structure_kind = "defense"
 
     def __init__(
         self,
@@ -32,10 +97,9 @@ class DefenseTower(Structure):
         size_scale: float = 3.0,
         base_size_scale: float | None = None,
         slot_size: tuple[float, float] = (64.0, 64.0),
-        max_health: float = 200.0,
-        on_health_changed=None,
         shots_per_burst: int = 1,
         burst_interval: float = 0.12,
+        max_health: float = 250.0,
     ) -> None:
         self._validate_combat_values(
             range_radius=range_radius,
@@ -66,10 +130,9 @@ class DefenseTower(Structure):
             raise ValueError("Slot dimensions must be finite and positive.")
 
         super().__init__(
-            structure_id=f"defense:{slot_id}",
+            structure_id=slot_id,
             position=position,
             max_health=max_health,
-            on_health_changed=on_health_changed,
         )
 
         self.slot_id = slot_id
@@ -180,7 +243,7 @@ class DefenseTower(Structure):
         nearest_distance = self.range_radius
 
         for enemy in enemies:
-            if not enemy.alive:
+            if not enemy.alive or enemy.reached_end:
                 continue
 
             distance = self.position.distance_to(enemy.position)
@@ -193,7 +256,7 @@ class DefenseTower(Structure):
 
     def _fire(self, target: Enemy) -> None:
         """Fire one projectile at a living enemy."""
-        if not self.alive or not target.alive:
+        if not self.alive or not target.alive or target.reached_end:
             return
 
         self.projectiles.append(
@@ -226,9 +289,6 @@ class DefenseTower(Structure):
         """Track enemies, fire bursts, and advance active projectiles."""
         if not math.isfinite(delta_time) or delta_time < 0:
             raise ValueError("Delta time must be finite and non-negative.")
-        if self.destroyed:
-            self.projectiles.clear()
-            return
 
         self.cooldown = max(0.0, self.cooldown - delta_time)
         self._burst_timer = max(0.0, self._burst_timer - delta_time)
@@ -266,8 +326,10 @@ class DefenseTower(Structure):
                     else:
                         self.cooldown = 1.0 / self.fire_rate
 
+        # Projectiles already fired remain in flight if their tower
+        # is destroyed. They still need to resolve their impacts.
         for projectile in self.projectiles:
-            projectile.update(delta_time, enemies)
+            projectile.update(delta_time)
 
         self.projectiles[:] = [
             projectile
@@ -377,10 +439,6 @@ class DefenseTower(Structure):
     ) -> None:
         """Draw the tower, its health bar, and any active projectiles."""
         if map_width <= 0 or map_height <= 0:
-            return
-
-        if self.destroyed:
-            super().draw(surface, map_width, map_height, show_range)
             return
 
         scale_x = surface.get_width() / map_width
@@ -498,6 +556,8 @@ class DefenseTower(Structure):
                 rendered_width,
             )
 
+        # Already-fired projectiles are allowed to finish their flight,
+        # even when the source tower has been destroyed.
         for projectile in self.projectiles:
             projectile.draw(
                 surface,

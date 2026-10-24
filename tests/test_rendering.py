@@ -21,7 +21,6 @@ def test_tower_cache_preserves_pixels_and_refreshes_on_resize(rendered_simulatio
     sim = rendered_simulation
     sim.place_tower(0, "cannon")
     tower = sim.towers[0]
-    monkeypatch.setattr(tower, "_draw_health_bar", lambda *args: None)
     original_scale = pygame.transform.smoothscale
     scale = Mock(wraps=original_scale)
     monkeypatch.setattr(pygame.transform, "smoothscale", scale)
@@ -30,12 +29,6 @@ def test_tower_cache_preserves_pixels_and_refreshes_on_resize(rendered_simulatio
         actual = pygame.Surface(size, pygame.SRCALPHA)
         expected = pygame.Surface(size, pygame.SRCALPHA)
         sx, sy = size[0] / sim.pathway.map_width, size[1] / sim.pathway.map_height
-        base = original_scale(tower.base_sprite, (
-            round(tower.base_sprite.get_width() * tower.base_size_scale * sx),
-            round(tower.base_sprite.get_height() * tower.base_size_scale * sy),
-        ))
-        center = (round(tower.position.x * sx), round(tower.position.y * sy))
-        expected.blit(base, base.get_rect(center=center))
         scaled = original_scale(tower.sprite, (round(tower.sprite.get_width() * tower.size_scale * sx),
                                                round(tower.sprite.get_height() * tower.size_scale * sy)))
         rotated = pygame.transform.rotate(scaled, angle)
@@ -43,7 +36,7 @@ def test_tower_cache_preserves_pixels_and_refreshes_on_resize(rendered_simulatio
                                                         round(tower.position.y * sy))))
         tower.draw(actual, sim.pathway.map_width, sim.pathway.map_height)
         assert pygame.image.tobytes(actual, "RGBA") == pygame.image.tobytes(expected, "RGBA")
-    assert scale.call_count == 4
+    assert scale.call_count == 2
 
 
 def test_enemy_cache_preserves_pixels_and_refreshes_on_turns(rendered_simulation, monkeypatch):
@@ -68,26 +61,3 @@ def test_enemy_cache_preserves_pixels_and_refreshes_on_turns(rendered_simulation
         enemy.draw(actual)
         assert pygame.image.tobytes(actual, "RGBA") == pygame.image.tobytes(expected, "RGBA")
     assert rotate.call_count == 3
-
-
-@pytest.mark.parametrize("kind", ["defense", "resource", "king"])
-def test_structure_health_and_destroyed_state_are_visible(rendered_simulation, kind):
-    sim = rendered_simulation
-    sim.place_tower(0, "cannon")
-    structure = {"defense": sim.towers[0], "resource": sim.resource_towers[0],
-                 "king": sim.king_towers[0]}[kind]
-    structure.position = pygame.Vector2(480, 320)
-    screen = pygame.Surface((960, 640), pygame.SRCALPHA)
-    structure.take_damage(structure.max_health / 2)
-    structure.draw(screen, 960, 640)
-    damaged = pygame.image.tobytes(screen, "RGBA")
-    pixels = pygame.surfarray.array3d(screen)
-    health_color = {"defense": (65, 220, 90), "resource": (65, 210, 85),
-                    "king": (65, 220, 90)}[kind]
-    assert ((pixels == health_color).all(axis=2)).any()
-    assert ((pixels == (55, 25, 25)).all(axis=2)).any()
-    structure.take_damage(structure.max_health)
-    screen.fill((0, 0, 0, 0))
-    structure.draw(screen, 960, 640)
-    assert pygame.image.tobytes(screen, "RGBA") != damaged
-    assert screen.get_at((480, 320)).a > 0

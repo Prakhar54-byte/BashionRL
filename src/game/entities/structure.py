@@ -1,9 +1,11 @@
+
 from __future__ import annotations
 
 import math
 from typing import TypeAlias
 
 import pygame
+
 
 StructureId: TypeAlias = int | str
 
@@ -27,15 +29,11 @@ class Structure:
     resource costs, targeting, or income generation.
     """
 
-    structure_kind = "structure"
-
     def __init__(
         self,
         structure_id: StructureId,
         position: pygame.Vector2,
         max_health: float,
-        *,
-        on_health_changed=None,
     ) -> None:
         self._validate_structure_id(structure_id)
 
@@ -70,7 +68,6 @@ class Structure:
 
         self.max_health = float(max_health)
         self._health = self.max_health
-        self.on_health_changed = on_health_changed
 
     @staticmethod
     def _validate_structure_id(
@@ -78,7 +75,7 @@ class Structure:
     ) -> None:
         """Validate a structure's identifier."""
         if isinstance(structure_id, bool):
-            raise TypeError(
+            raise ValueError(
                 "Structure ID must be a non-empty string or integer."
             )
 
@@ -126,15 +123,22 @@ class Structure:
         previous_health = self._health
         self._health = max(0.0, self._health - amount)
 
-        self.health_changed()
         return previous_health - self._health
 
     def destroy(self) -> None:
         """Immediately destroy this structure."""
-        self.take_damage(self.health)
+        self._health = 0.0
 
     def _restore_health(self, amount: float) -> float:
-        """Apply a subclass's gradual healing and notify the simulation."""
+        """Restore health for use by a subclass's completed repair action.
+
+        This method does not start a repair or advance a repair timer.
+        KingTower should call it only after its configured repair
+        duration has elapsed and the simulation has approved the repair.
+
+        Returns:
+            The amount of health actually restored.
+        """
         self._validate_amount(amount, "Restoration amount")
 
         if amount == 0.0:
@@ -146,8 +150,6 @@ class Structure:
             self._health + amount,
         )
 
-        if self._health != previous_health:
-            self.health_changed()
         return self._health - previous_health
 
     @staticmethod
@@ -174,27 +176,3 @@ class Structure:
             f"health={self.health:.1f}/{self.max_health:.1f}, "
             f"alive={self.alive})"
         )
-
-    def health_changed(self):
-        if self.on_health_changed is not None:
-            self.on_health_changed(self)
-
-    def draw_health(self, surface, map_width, map_height):
-        sx, sy = surface.get_width() / map_width, surface.get_height() / map_height
-        x, y = round(self.position.x * sx) - 20, round(self.position.y * sy) - 27
-        pygame.draw.rect(surface, (80, 30, 30), (x, y, 40, 5))
-        pygame.draw.rect(surface, (60, 210, 100), (x, y, round(40 * self.health / self.max_health), 5))
-
-    def draw(self, surface, map_width, map_height, show_range=False):
-        if map_width <= 0 or map_height <= 0:
-            return
-        center = (round(self.position.x * surface.get_width() / map_width),
-                  round(self.position.y * surface.get_height() / map_height))
-        color = (90, 90, 90) if self.destroyed else (
-            (235, 190, 50) if self.structure_kind == "king" else (60, 175, 150)
-        )
-        pygame.draw.circle(surface, color, center, 20)
-        if self.destroyed:
-            pygame.draw.line(surface, (35, 35, 35), (center[0]-10, center[1]-10),
-                             (center[0]+10, center[1]+10), 3)
-        self.draw_health(surface, map_width, map_height)

@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import math
@@ -18,21 +19,18 @@ class ResourceTower(Structure):
     partial progress so a temporary pause does not discard accumulated time.
     """
 
-    structure_kind = "resource"
-
     def __init__(
         self,
-        structure_id: int | str,
+        tower_id: int | str,
         position: pygame.Vector2 | tuple[float, float],
-        max_health: float = 250.0,
         *,
         sprite: pygame.Surface | None = None,
-        on_health_changed=None,
+        max_health: float = 250.0,
         production_interval: float = 15.0,
         production_amount: int = 10,
         size_scale: float = 1.0,
     ) -> None:
-        super().__init__(structure_id, position, max_health, on_health_changed=on_health_changed)
+        super().__init__(tower_id, position, max_health)
 
         if (
             not math.isfinite(production_interval)

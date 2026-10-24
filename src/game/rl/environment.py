@@ -32,13 +32,14 @@ class BastionEnv(gym.Env):
         )
         size = 8 + len(sim.defense_slots.slots) * 5 + self.max_enemies * 6
         self.observation_space = spaces.Box(0.0, np.inf, shape=(size,), dtype=np.float32)
-        self.route_offsets = {}
-        for route in (*sim.soldier_routes.values(), *sim.tank_routes.values()):
-            lengths = [start.distance_to(end) for start, end in zip(route.points, route.points[1:])]
-            offsets = np.concatenate(([0.0], np.cumsum(lengths)))
-            if offsets[-1] <= 0:
-                raise ValueError("The enemy route must have positive length.")
-            self.route_offsets[route] = offsets
+        self.segment_lengths = np.array([
+            start.distance_to(end)
+            for start, end in zip(sim.pathway.points, sim.pathway.points[1:])
+        ])
+        self.route_offsets = np.concatenate(([0.0], np.cumsum(self.segment_lengths)))
+        self.route_length = float(self.route_offsets[-1])
+        if self.route_length <= 0:
+            raise ValueError("The enemy route must have positive length.")
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
@@ -82,7 +83,7 @@ class BastionEnv(gym.Env):
         self.steps += 1
         terms = {
             "kills": 0.1 * (sim.state.enemies_killed - previous[0]),
-            "base_damage": -max(0.0, previous[1] - sim.state.base_health) / 10.0,
+            "base_damage": -(previous[1] - sim.state.base_health) / 10.0,
             "waves": float(sim.waves_completed - previous[2]),
             "outcome": 20.0 if sim.state.status == GameStatus.WON else (
                 -20.0 if sim.state.status == GameStatus.LOST else 0.0
@@ -121,16 +122,15 @@ class BastionEnv(gym.Env):
             ])
         rows = []
         for enemy in sim.enemies:
-            offsets = self.route_offsets[enemy.pathway]
-            segment = min(enemy.waypoint_index - 1, len(offsets) - 2)
-            travelled = offsets[segment] + enemy.position.distance_to(
-                enemy.pathway.points[segment]
+            segment = min(enemy.waypoint_index - 1, len(self.segment_lengths) - 1)
+            travelled = self.route_offsets[segment] + enemy.position.distance_to(
+                sim.pathway.points[segment]
             )
             rows.append([
                 1.0, enemy.position.x / sim.pathway.map_width,
                 enemy.position.y / sim.pathway.map_height, enemy.health / 100.0,
                 (sim.enemy_types.index(enemy.enemy_type) + 1) / len(sim.enemy_types),
-                min(1.0, travelled / offsets[-1]),
+                travelled / self.route_length,
             ])
         rows.sort(key=lambda row: row[5], reverse=True)
         enemies = np.zeros((self.max_enemies, 6), dtype=np.float32)
@@ -151,7 +151,5 @@ class BastionEnv(gym.Env):
             "kills": sim.state.enemies_killed, "leaks": sim.state.enemies_leaked,
             "resources": sim.state.resource_balance,
             "spent": sim.state.resources.total_spent,
-            "king_towers_alive": sum(king.alive for king in sim.king_towers),
-            "resource_towers_alive": sum(tower.alive for tower in sim.resource_towers),
             **{f"reward_{name}": value for name, value in self.reward_totals.items()},
         }

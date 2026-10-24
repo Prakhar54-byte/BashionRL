@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import math
@@ -15,17 +16,15 @@ class KingTower(Structure):
     for repair costs, repair eligibility, and the defeat condition.
     """
 
-    structure_kind = "king"
     CROWN_EMOJI = "👑"
 
     def __init__(
         self,
         structure_id: int | str,
         position: pygame.Vector2,
-        max_health: float = 1000.0,
-        *,
         sprite: pygame.Surface | None = None,
-        on_health_changed=None,
+        *,
+        max_health: float = 1000.0,
         repair_duration: float = 8.0,
         repair_cost: int = 50,
         size_scale: float = 1.0,
@@ -70,7 +69,6 @@ class KingTower(Structure):
             structure_id=structure_id,
             position=position,
             max_health=max_health,
-            on_health_changed=on_health_changed,
         )
 
         self.sprite = sprite
@@ -86,17 +84,6 @@ class KingTower(Structure):
 
         self._scaled_sprite: pygame.Surface | None = None
         self._scaled_sprite_size: tuple[int, int] | None = None
-
-    @property
-    def can_repair(self):
-        return not self.repairing and self.health < self.max_health
-
-    def take_damage(self, amount):
-        was_alive = self.alive
-        damage = super().take_damage(amount)
-        if was_alive and self.destroyed:
-            self.repairing = False
-        return damage
 
     @property
     def repair_progress(self) -> float:

@@ -9,7 +9,7 @@ from src.game.state.game_state import GameStatus
 
 def test_placement_is_atomic_and_reset_clears_episode():
     sim = Simulation(seed=5)
-    assert len(sim.defense_slots.slots) == 46
+    assert len(sim.defense_slots.slots) == 31
     assert sim.place_tower(0, "double_cannon")
     assert sim.state.resource_balance == 50
     assert not sim.place_tower(0, "cannon")
@@ -37,8 +37,7 @@ def test_kill_and_leak_are_accounted_once():
     sim.tick()
     sim.tick()
     assert sim.state.enemies_leaked == 1
-    assert sim.state.base_health == sim.state.max_base_health
-    assert sim.state.total_leak_damage == 10
+    assert sim.state.base_health == 90
     assert sim.state.enemies_killed == 1
 
 
@@ -74,7 +73,7 @@ def test_no_defenses_eventually_loses_and_stops():
         if sim.state.is_terminal:
             break
     assert sim.state.status == GameStatus.LOST
-    assert all(king.destroyed for king in sim.king_towers)
+    assert sim.state.enemies_leaked == 10
     assert sim.state.enemies_killed == 0
 
 
@@ -90,42 +89,6 @@ def test_frame_grouping_does_not_change_simulation():
     ]
     with pytest.raises(ValueError):
         first.advance(float("nan"))
-
-
-def test_each_system_advances_once_per_tick():
-    sim = Simulation(seed=0)
-    assert sim.place_tower(0, "cannon")
-    tower = sim.towers[0]
-    tower.cooldown = 1.0
-    king = sim.king_towers[0]
-    king.take_damage(100)
-    assert sim.start_king_tower_repair(king.structure_id)
-    resource = sim.resource_towers[0]
-    production_remaining = resource.production_time_remaining
-    intermission = sim.director.intermission_timer
-    health = king.health
-    sim.tick()
-    assert sim.ticks == 1
-    assert sim.director.intermission_timer == pytest.approx(intermission - sim.timestep)
-    assert tower.cooldown == pytest.approx(1.0 - sim.timestep)
-    assert resource.production_time_remaining == pytest.approx(production_remaining - sim.timestep)
-    assert king.health == pytest.approx(health + 100 / king.repair_duration * sim.timestep)
-
-
-def test_resource_purchase_and_destruction_release_slot():
-    sim = Simulation(seed=0)
-    initial_balance = sim.state.resource_balance
-    assert sim.place_resource_tower(0)
-    tower = sim.resource_towers[-1]
-    assert sim.state.resource_balance == initial_balance - sim.config.resource_tower.cost
-    assert not sim.place_resource_tower(0)
-    assert sim.resource_slots.slots[0].occupied
-    tower.take_damage(tower.max_health)
-    assert not sim.resource_slots.slots[0].occupied
-    assert tower.update(100) == 0
-    sim.state.resources.earn(sim.config.resource_tower.cost)
-    assert sim.place_resource_tower(0)
-    assert sim.resource_towers[-1].alive
 
 
 def test_hard_preset_has_more_pressure():

@@ -107,7 +107,7 @@ def draw_hud(
     alive_enemies = sum(
         1
         for enemy in simulation.enemies
-        if enemy.alive
+        if enemy.alive and not enemy.reached_end
     )
 
     living_kings = [
@@ -145,7 +145,7 @@ def draw_hud(
 
     status_lines = [
         (
-            f"Combined King HP: "
+            f"Base HP (legacy): "
             f"{state.base_health:.0f}/{state.max_base_health:.0f}"
         ),
         f"Resources: {state.resource_balance}",
@@ -469,10 +469,6 @@ def main() -> None:
                         selected_mode = "defense"
                         selected_defense = "double_cannon"
 
-                    elif pygame.K_1 <= event.key <= pygame.K_9:
-                        index = event.key - pygame.K_1
-                        if index < len(simulation.king_towers):
-                            simulation.repair_king_tower(simulation.king_towers[index].structure_id)
                     elif event.key == pygame.K_e:
                         selected_mode = "resource"
 

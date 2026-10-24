@@ -5,7 +5,9 @@ import math
 from dataclasses import dataclass, field
 from enum import Enum
 
+
 from src.game.economy.resources import ResourceManager
+
 
 KingTowerId = int | str
 
@@ -26,7 +28,8 @@ class GameState:
     - Track destroyed King Towers.
     - Immediately lose the episode when every King Tower is destroyed.
 
-    Base health reports combined King Tower health. Leaks are telemetry only.
+    Base-health tracking is retained temporarily for compatibility with the
+    existing Simulation while its objective and leak logic are being updated.
     """
 
     max_base_health: float = 100.0
@@ -139,7 +142,12 @@ class GameState:
         self.resources.earn(reward)
 
     def register_leak(self, damage: float) -> None:
-        """Record endpoint arrivals; King health is the authoritative objective."""
+        """Record a leaking enemy and apply legacy base-health damage.
+
+        This behavior is retained for compatibility with the existing
+        Simulation. The new King Tower objective logic will be integrated
+        when Simulation is rewritten.
+        """
         if not math.isfinite(damage) or damage < 0:
             raise ValueError("Leak damage must be finite and non-negative.")
 
@@ -148,6 +156,10 @@ class GameState:
 
         self.enemies_leaked += 1
         self.total_leak_damage += damage
+        self.base_health = max(0.0, self.base_health - damage)
+
+        if self.base_health <= 0:
+            self.mark_lost()
 
     def register_king_tower_destroyed(
         self,

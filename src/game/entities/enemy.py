@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 import pygame
 
-from src.game.entities.projectile import Projectile
 from src.game.terrain.pathway import Pathway
 
 
@@ -20,11 +19,6 @@ class EnemyConfig:
     size_scale: float = 0.5
     leak_damage: float = 10.0
     kill_reward: int = 25
-    kind: str = "soldier"
-    attack_damage: float = 10.0
-    attack_interval: float = 1.0
-    attack_range: float = 85.0
-    projectile_speed: float = 250.0
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
@@ -56,16 +50,9 @@ class EnemyConfig:
             or not isinstance(self.kill_reward, int)
             or self.kill_reward < 0
         ):
-            raise ValueError("Kill reward must be a non-negative integer.")
-        if self.kind not in ("soldier", "tank"):
-            raise ValueError("Enemy kind must be soldier or tank.")
-        if any(not math.isfinite(value) or value <= 0 for value in (
-            self.speed, self.max_health, self.size_scale, self.attack_damage,
-            self.attack_interval, self.attack_range, self.projectile_speed,
-        )):
-            raise ValueError("Enemy movement, health, and combat values must be finite and positive.")
-        if not math.isfinite(self.leak_damage):
-            raise ValueError("Leak damage must be finite.")
+            raise ValueError(
+                "Kill reward must be a non-negative integer."
+            )
 
 
 class Enemy:
@@ -117,13 +104,6 @@ class Enemy:
         self.alive = True
         self.reached_end = False
 
-        # Source sprites face East (right).
-        self.direction = pygame.Vector2(1, 0)
-        self.target = None
-        self.attack_cooldown = 0.0
-        self.projectiles: list[Projectile] = []
-        self.leak_registered = False
-        self.gun_direction = self.direction.copy()
         # Assigned by Simulation after the enemy is created.
         self.enemy_type: str | None = None
 
@@ -187,45 +167,12 @@ class Enemy:
         if offset.length_squared() > 1e-12:
             self.gun_angle = self._direction_angle(offset)
 
-    def update(self, delta_time: float, structures=(), target_priority=("defense", "resource", "king")) -> None:
+    def update(self, delta_time: float) -> None:
         """Move along the pathway independently of frame rate."""
         if not math.isfinite(delta_time) or delta_time < 0:
-            raise ValueError("Delta time must be finite and non-negative.")
-        if not self.alive:
-            return
-        self.attack_cooldown = max(0.0, self.attack_cooldown - delta_time)
-        valid = [structure for structure in structures if structure.alive and
-                 self.position.distance_to(structure.position) <= self.config.attack_range + 1e-6]
-        if self.target not in valid:
-            self.target = min(valid, key=lambda structure: (
-                target_priority.index(structure.structure_kind),
-                self.position.distance_squared_to(structure.position), str(structure.structure_id),
-            ), default=None)
-        if self.target is not None:
-            offset = self.target.position - self.position
-            if offset.length_squared() > 0:
-                self.gun_direction = offset.normalize()
-                self.aim_at(self.target.position)
-            if self.attack_cooldown <= 1e-9:
-                if self.config.kind == "tank":
-                    self.projectiles.append(Projectile(self.position, self.target,
-                                                       self.config.projectile_speed, self.config.attack_damage))
-                else:
-                    self.target.take_damage(self.config.attack_damage)
-                self.attack_cooldown = self.config.attack_interval
-            return
-        if self.reached_end:
-            kings = [structure for structure in structures if structure.alive and structure.structure_kind == "king"]
-            target = min(kings, key=lambda structure: (
-                self.position.distance_squared_to(structure.position), str(structure.structure_id),
-            ), default=None)
-            if target is not None:
-                offset = target.position - self.position
-                if offset.length_squared() > 0:
-                    self.direction = offset.normalize()
-                    self.position += self.direction * min(self.speed * delta_time,
-                                                          max(0.0, offset.length() - self.config.attack_range))
-            return
+            raise ValueError(
+                "Delta time must be finite and non-negative."
+            )
 
         if not self.alive or self.reached_end:
             return
@@ -265,7 +212,9 @@ class Enemy:
     def take_damage(self, amount: float) -> None:
         """Apply damage and mark the enemy dead when health reaches zero."""
         if not math.isfinite(amount) or amount < 0:
-            raise ValueError("Damage must be finite and non-negative.")
+            raise ValueError(
+                "Damage must be finite and non-negative."
+            )
 
         if not self.alive:
             return
@@ -335,7 +284,7 @@ class Enemy:
 
     def draw(self, surface: pygame.Surface) -> None:
         """Render the enemy or the separate layers of a tank."""
-        if not self.alive:
+        if not self.alive or self.reached_end:
             return
 
         if self.pathway.map_width <= 0 or self.pathway.map_height <= 0:
@@ -407,9 +356,6 @@ class Enemy:
 
             sprite_top = sprite_rect.top
             sprite_width = sprite_rect.width
-
-        for projectile in self.projectiles:
-            projectile.draw(surface, self.pathway.map_width, self.pathway.map_height)
 
         self._draw_health_bar(
             surface,

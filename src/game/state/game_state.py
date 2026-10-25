@@ -1,13 +1,10 @@
-
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
 from enum import Enum
 
-
 from src.game.economy.resources import ResourceManager
-
 
 KingTowerId = int | str
 
@@ -131,11 +128,7 @@ class GameState:
         if self.is_terminal:
             return
 
-        if (
-            isinstance(reward, bool)
-            or not isinstance(reward, int)
-            or reward < 0
-        ):
+        if isinstance(reward, bool) or not isinstance(reward, int) or reward < 0:
             raise ValueError("Kill reward must be a non-negative integer.")
 
         self.enemies_killed += 1

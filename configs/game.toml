@@ -1,8 +1,7 @@
-
 [window]
 title = "BastionRL"
-width = 960
-height = 640
+width = 1280
+height = 720
 fps = 60
 
 [grid]
@@ -30,6 +29,7 @@ gun = "Assets/Main/Entities/Enemies/heavy_tank_gun.png"
 
 [assets.defense]
 slot = "Assets/Main/Entities/Defense/slot.png"
+resource_slot = "Assets/Main/Entities/Defense/resource_slot.png"
 cannon = "Assets/Main/Entities/Defense/cannon.png"
 double_cannon = "Assets/Main/Entities/Defense/double_cannon.png"
 cannon_base = "Assets/Main/Entities/Defense/cannon_base.png"
@@ -56,23 +56,26 @@ kill_reward = 40
 [enemies.light_tank]
 name = "Light Tank"
 speed = 65.0
-max_health = 250.0
+max_health = 280.0
 size_scale = 0.8
 leak_damage = 20.0
 kill_reward = 50
+attack_damage = 25.0
 
 [enemies.heavy_tank]
 name = "Heavy Tank"
 speed = 35.0
-max_health = 500.0
+max_health = 350.0
 size_scale = 0.9
 leak_damage = 30.0
 kill_reward = 75
+attack_damage = 40.0
 
 [towers.cannon]
 name = "Cannon"
 cost = 100
-range_radius = 180.0
+max_health = 300.0
+range_radius = 240.0
 damage = 25.0
 fire_rate = 1.0
 projectile_speed = 350.0
@@ -84,7 +87,8 @@ burst_interval = 0.12
 [towers.double_cannon]
 name = "Double Cannon"
 cost = 150
-range_radius = 220.0
+max_health = 400.0
+range_radius = 280.0
 damage = 20.0
 fire_rate = 2.0
 projectile_speed = 400.0
@@ -95,11 +99,18 @@ burst_interval = 0.12
 
 [resource_tower]
 name = "Resource Tower"
-cost = 125
+cost = 50
 max_health = 250.0
-production_interval = 15.0
-production_amount = 10
+production_interval = 10.0
+production_amount = 50
 size_scale = 1.0
+
+[king_tower]
+max_health = 500.0
+
+[economy]
+passive_income_interval = 15.0
+passive_income_amount = 50
 
 [difficulty.baseline]
 max_waves = 10
@@ -111,8 +122,8 @@ enemy_health_growth = 0.0
 initial_enemy_count = 5
 additional_enemies_per_wave = 2
 spawn_interval = 1.0
-initial_intermission = 3.0
-intermission_between_waves = 5.0
+initial_intermission = 15.0
+intermission_between_waves = 10.0
 difficulty_growth = 0.15
 light_tank_start_wave = 2
 strongest_enemy_start_wave = 3
@@ -127,9 +138,10 @@ enemy_health_growth = 0.20
 initial_enemy_count = 5
 additional_enemies_per_wave = 2
 spawn_interval = 1.0
-initial_intermission = 3.0
-intermission_between_waves = 5.0
+initial_intermission = 15.0
+intermission_between_waves = 10.0
 difficulty_growth = 0.10
+light_tank_start_wave = 2
 strongest_enemy_start_wave = 3
 
 [difficulty.hard]
@@ -142,7 +154,8 @@ enemy_health_growth = 0.35
 initial_enemy_count = 7
 additional_enemies_per_wave = 3
 spawn_interval = 0.8
-initial_intermission = 3.0
-intermission_between_waves = 4.0
+initial_intermission = 15.0
+intermission_between_waves = 10.0
 difficulty_growth = 0.15
+light_tank_start_wave = 2
 strongest_enemy_start_wave = 3

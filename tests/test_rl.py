@@ -20,8 +20,12 @@ def test_gymnasium_api_and_seed_reproducibility():
     env = BastionEnv()
     check_env(env, skip_render_check=True)
     observation, _ = env.reset(seed=13)
-    assert observation.shape == (547,)
-    assert env.action_space.n == 63
+    sim = env.simulation
+    expected_size = 8 + len(sim.defense_slots.slots) * 5 + env.max_enemies * 6
+    assert observation.shape == (expected_size,)
+    assert env.action_space.n == (
+        1 + len(sim.defense_slots.slots) * len(sim.tower_types)
+    )
     assert env.observation_space.contains(observation)
     for _ in range(50):
         first = env.step(0)
@@ -90,15 +94,22 @@ def test_timeout_is_truncation_and_requires_reset():
 def test_loss_reward_is_emitted_once():
     env = BastionEnv(max_steps=1)
     env.reset(seed=0)
-    env.simulation.state.base_health = 10
-    env.simulation._spawn_enemy("enemy1")
-    env.simulation.enemies[0].reached_end = True
+    for tower in env.simulation.king_towers:
+        tower.destroy()
+
     _, reward, terminated, truncated, info = env.step(0)
+
     assert terminated and not truncated
-    assert info["reward_terms"] == {"kills": 0, "base_damage": -1, "waves": 0,
-                                    "outcome": -20, "invalid_action": 0, "spending": 0}
+    assert info["reward_terms"] == {
+        "kills": 0,
+        "base_damage": 0,
+        "waves": 0,
+        "outcome": -20,
+        "invalid_action": 0,
+        "spending": 0,
+    }
     assert not info["survived"]
-    assert reward == -21
+    assert reward == pytest.approx(-20)
     with pytest.raises(RuntimeError):
         env.step(0)
 
@@ -123,7 +134,7 @@ def test_win_reward_and_fresh_observation_buffers():
 def test_heuristic_scores_cover_all_actions():
     env = BastionEnv()
     scores = coverage_scores(env)
-    assert scores.shape == (63,)
+    assert scores.shape == (env.action_space.n,)
     assert np.isfinite(scores).all() and max(scores) > 0
 
 
@@ -132,8 +143,16 @@ def test_model_save_load_and_manifest_guard(tmp_path):
     from sb3_contrib import MaskablePPO
 
     env = BastionEnv()
-    model = MaskablePPO("MlpPolicy", env, n_steps=8, batch_size=8, n_epochs=1,
-                        policy_kwargs={"net_arch": [16]}, device="cpu", seed=0)
+    model = MaskablePPO(
+        "MlpPolicy",
+        env,
+        n_steps=8,
+        batch_size=8,
+        n_epochs=1,
+        policy_kwargs={"net_arch": [16]},
+        device="cpu",
+        seed=0,
+    )
     model.learn(8)
     path = tmp_path / "model.zip"
     model.save(path)
@@ -156,9 +175,14 @@ def test_model_save_load_and_manifest_guard(tmp_path):
 
 def test_enemy_rows_preserve_positions_health_and_padding():
     env = BastionEnv()
-    initial, _ = env.reset(seed=0)
-    np.testing.assert_array_equal(initial[163:], 0)
+    env.reset(seed=0)
     sim = env.simulation
+    sim.enemies.clear()
+
+    enemy_offset = 8 + len(sim.defense_slots.slots) * 5
+    initial = env.observation()
+    np.testing.assert_array_equal(initial[enemy_offset:], 0)
+
     sim._spawn_enemy("enemy1")
     sim._spawn_enemy("enemy2")
     first, second = sim.enemies
@@ -167,12 +191,19 @@ def test_enemy_rows_preserve_positions_health_and_padding():
     second.position = start.lerp(end, 0.75)
     second.health = 80
     observation = env.observation()
-    rows = observation[163:].reshape(64, 6)
-    np.testing.assert_allclose(rows[0], [
-        1, second.position.x / sim.pathway.map_width,
-        second.position.y / sim.pathway.map_height, 0.8, 1,
-        start.distance_to(second.position) / env.route_length,
-    ], rtol=1e-6)
+    rows = observation[enemy_offset:].reshape(env.max_enemies, 6)
+    np.testing.assert_allclose(
+        rows[0],
+        [
+            1,
+            second.position.x / sim.pathway.map_width,
+            second.position.y / sim.pathway.map_height,
+            0.8,
+            1,
+            start.distance_to(second.position) / env.route_length,
+        ],
+        rtol=1e-6,
+    )
     assert rows[1, 3] == 1 and rows[1, 4] == 0.5
     np.testing.assert_array_equal(rows[2:], 0)
     assert env.observation_space.contains(observation)
@@ -181,13 +212,17 @@ def test_enemy_rows_preserve_positions_health_and_padding():
 def test_enemy_overflow_is_bounded_and_reported():
     env = BastionEnv()
     env.reset(seed=0)
+    sim = env.simulation
+    sim.enemies.clear()
     for _ in range(65):
-        env.simulation._spawn_enemy("enemy1")
-    start, end = env.simulation.pathway.points[:2]
-    env.simulation.enemies[-1].position = start.lerp(end, 0.5)
+        sim._spawn_enemy("enemy1")
+    start, end = sim.pathway.points[:2]
+    sim.enemies[-1].position = start.lerp(end, 0.5)
+
     observation = env.observation()
-    assert observation.shape == (547,)
-    rows = observation[163:].reshape(64, 6)
+    enemy_offset = 8 + len(sim.defense_slots.slots) * 5
+    assert observation.shape == env.observation_space.shape
+    rows = observation[enemy_offset:].reshape(env.max_enemies, 6)
     assert rows[0, 5] > 0
     assert (rows[:, 0] == 1).all()
     assert env.info()["enemies_omitted"] == 1
@@ -205,9 +240,15 @@ def test_experimental_balance_and_horizon_do_not_change_baseline_schema():
 
 
 @pytest.mark.parametrize("explicit_output", [False, True])
-def test_cli_evaluation_reports_and_saves_all_required_metrics(tmp_path, monkeypatch, explicit_output):
+def test_cli_evaluation_reports_and_saves_all_required_metrics(
+    tmp_path, monkeypatch, explicit_output
+):
     monkeypatch.chdir(tmp_path)
-    path = tmp_path / "evaluation.json" if explicit_output else tmp_path / "runs/evaluation-baseline.json"
+    path = (
+        tmp_path / "evaluation.json"
+        if explicit_output
+        else tmp_path / "runs/evaluation-baseline.json"
+    )
     arguments = ["rl", "evaluate", "--episodes", "2", "--max-steps", "1"]
     if explicit_output:
         arguments.extend(["--output", str(path)])
@@ -218,8 +259,15 @@ def test_cli_evaluation_reports_and_saves_all_required_metrics(tmp_path, monkeyp
     assert result["max_steps"] == 1
     assert result["survival_rate"] == result["truncation_rate"] == 1
     assert result["win_rate"] == 0
-    for name in ("mean_episode_reward", "std_episode_reward", "mean_base_health",
-                 "mean_waves_reached", "mean_waves_completed", "mean_kills", "mean_leaks"):
+    for name in (
+        "mean_episode_reward",
+        "std_episode_reward",
+        "mean_base_health",
+        "mean_waves_reached",
+        "mean_waves_completed",
+        "mean_kills",
+        "mean_leaks",
+    ):
         assert name in result
     assert len(result["results"]) == 2
     assert [item["seed"] for item in result["results"]] == [30000, 30001]
@@ -228,9 +276,23 @@ def test_cli_evaluation_reports_and_saves_all_required_metrics(tmp_path, monkeyp
 def test_cli_train_and_evaluate_smoke(tmp_path, monkeypatch):
     pytest.importorskip("sb3_contrib")
     output = tmp_path / "training"
-    monkeypatch.setattr("sys.argv", ["rl", "train", "--steps", "256", "--max-steps", "2",
-                                    "--eval-freq", "256", "--eval-episodes", "1",
-                                    "--output", str(output)])
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "rl",
+            "train",
+            "--steps",
+            "256",
+            "--max-steps",
+            "2",
+            "--eval-freq",
+            "256",
+            "--eval-episodes",
+            "1",
+            "--output",
+            str(output),
+        ],
+    )
     main()
     model = output / "final.zip"
     assert model.is_file() and (output / "best_model.zip").is_file()
@@ -239,8 +301,21 @@ def test_cli_train_and_evaluate_smoke(tmp_path, monkeypatch):
     assert metadata["training_max_steps"] == 2
     assert (output / "progress.csv").is_file()
     report = tmp_path / "model-evaluation.json"
-    monkeypatch.setattr("sys.argv", ["rl", "evaluate", "--model", str(model),
-                                    "--episodes", "2", "--max-steps", "3", "--output", str(report)])
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "rl",
+            "evaluate",
+            "--model",
+            str(model),
+            "--episodes",
+            "2",
+            "--max-steps",
+            "3",
+            "--output",
+            str(report),
+        ],
+    )
     main()
     assert json.loads(report.read_text())["episodes"] == 2
 
@@ -252,9 +327,13 @@ def test_cli_rejects_invalid_horizon(monkeypatch):
     assert error.value.code == 2
 
 
-@pytest.mark.parametrize(("frame_ms", "ticks_per_frame", "prediction_count"),
-                         [(1000 / 60, 1, 2), (2000, 6, 12)])
-def test_spectator_frame_pacing_and_stall_recovery(monkeypatch, frame_ms, ticks_per_frame, prediction_count):
+@pytest.mark.parametrize(
+    ("frame_ms", "ticks_per_frame", "prediction_count"),
+    [(1000 / 60, 1, 2), (2000, 6, 12)],
+)
+def test_spectator_frame_pacing_and_stall_recovery(
+    monkeypatch, frame_ms, ticks_per_frame, prediction_count
+):
     import pygame
 
     import main as frontend
@@ -271,13 +350,21 @@ def test_spectator_frame_pacing_and_stall_recovery(monkeypatch, frame_ms, ticks_
         return env
 
     monkeypatch.setattr("src.game.rl.environment.BastionEnv", create_env)
-    monkeypatch.setattr("src.game.rl.checkpoint.load_model",
-                        lambda *args: SimpleNamespace(predict=predict))
-    monkeypatch.setattr(pygame.time, "Clock", lambda: SimpleNamespace(tick=lambda fps: frame_ms))
-    monkeypatch.setattr(pygame.display, "flip", lambda: frames.append(environments[0].simulation.ticks))
-    monkeypatch.setattr(pygame.event, "get", lambda: (
-        [pygame.event.Event(pygame.QUIT)] if len(frames) >= 59 else []
-    ))
+    monkeypatch.setattr(
+        "src.game.rl.checkpoint.load_model",
+        lambda *args: SimpleNamespace(predict=predict),
+    )
+    monkeypatch.setattr(
+        pygame.time, "Clock", lambda: SimpleNamespace(tick=lambda fps: frame_ms)
+    )
+    monkeypatch.setattr(
+        pygame.display, "flip", lambda: frames.append(environments[0].simulation.ticks)
+    )
+    monkeypatch.setattr(
+        pygame.event,
+        "get",
+        lambda: [pygame.event.Event(pygame.QUIT)] if len(frames) >= 59 else [],
+    )
     frontend.main()
     assert frames == [index * ticks_per_frame for index in range(1, 61)]
     assert predict.call_count == prediction_count
@@ -302,9 +389,9 @@ def test_rendered_ticks_match_headless_steps():
 def test_rendered_ticks_stop_immediately_on_defeat():
     env = BastionEnv()
     env.reset(seed=0)
-    env.simulation.state.base_health = 10
-    env.simulation._spawn_enemy("enemy1")
-    env.simulation.enemies[0].reached_end = True
+    for tower in env.simulation.king_towers:
+        tower.destroy()
+
     results = list(env.step_ticks(0))
     assert len(results) == env.simulation.ticks == 1
     assert results[0][2] and not results[0][3]

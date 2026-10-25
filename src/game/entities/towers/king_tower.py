@@ -1,3 +1,8 @@
+"""KingTower — the passive objective structure with timed repairs.
+
+The King Tower never attacks enemies.  Simulation is responsible for
+repair costs, repair eligibility, and the defeat condition.
+"""
 
 from __future__ import annotations
 
@@ -35,18 +40,14 @@ class KingTower(Structure):
             or not math.isfinite(repair_duration)
             or repair_duration <= 0
         ):
-            raise ValueError(
-                "Repair duration must be finite and positive."
-            )
+            raise ValueError("Repair duration must be finite and positive.")
 
         if (
             isinstance(repair_cost, bool)
             or not isinstance(repair_cost, int)
             or repair_cost < 0
         ):
-            raise ValueError(
-                "Repair cost must be a non-negative integer."
-            )
+            raise ValueError("Repair cost must be a non-negative integer.")
 
         if (
             isinstance(size_scale, bool)
@@ -54,16 +55,10 @@ class KingTower(Structure):
             or not math.isfinite(size_scale)
             or size_scale <= 0
         ):
-            raise ValueError(
-                "Size scale must be finite and positive."
-            )
+            raise ValueError("Size scale must be finite and positive.")
 
-        if sprite is not None and not isinstance(
-            sprite, pygame.Surface
-        ):
-            raise TypeError(
-                "King Tower sprite must be a pygame Surface or None."
-            )
+        if sprite is not None and not isinstance(sprite, pygame.Surface):
+            raise TypeError("King Tower sprite must be a pygame Surface or None.")
 
         super().__init__(
             structure_id=structure_id,
@@ -84,6 +79,9 @@ class KingTower(Structure):
 
         self._scaled_sprite: pygame.Surface | None = None
         self._scaled_sprite_size: tuple[int, int] | None = None
+
+    # ------------------------------------------------------------------
+    # Repair state
 
     @property
     def repair_progress(self) -> float:
@@ -132,9 +130,7 @@ class KingTower(Structure):
                 or not math.isfinite(repair_amount)
                 or repair_amount <= 0
             ):
-                raise ValueError(
-                    "Repair amount must be finite and positive."
-                )
+                raise ValueError("Repair amount must be finite and positive.")
 
             amount = min(
                 float(repair_amount),
@@ -171,9 +167,7 @@ class KingTower(Structure):
             or not math.isfinite(delta_time)
             or delta_time < 0
         ):
-            raise ValueError(
-                "Delta time must be finite and non-negative."
-            )
+            raise ValueError("Delta time must be finite and non-negative.")
 
         if not self.repairing or delta_time == 0:
             return 0.0
@@ -186,13 +180,9 @@ class KingTower(Structure):
         )
 
         elapsed = self.repair_elapsed - previous_elapsed
-        health_per_second = (
-            self._repair_amount / self.repair_duration
-        )
+        health_per_second = self._repair_amount / self.repair_duration
 
-        remaining_to_restore = (
-            self._repair_amount - self._repair_amount_restored
-        )
+        remaining_to_restore = self._repair_amount - self._repair_amount_restored
 
         requested_restore = min(
             health_per_second * elapsed,
@@ -204,8 +194,7 @@ class KingTower(Structure):
 
         if (
             self.repair_elapsed >= self.repair_duration
-            or self._repair_amount_restored
-            >= self._repair_amount - 1e-9
+            or self._repair_amount_restored >= self._repair_amount - 1e-9
         ):
             self.repairing = False
             self.repair_elapsed = 0.0
@@ -213,6 +202,9 @@ class KingTower(Structure):
             self._repair_amount_restored = 0.0
 
         return restored
+
+    # ------------------------------------------------------------------
+    # Rendering
 
     @staticmethod
     @lru_cache(maxsize=32)
@@ -315,10 +307,7 @@ class KingTower(Structure):
         if self.sprite is None:
             return None
 
-        if (
-            self._scaled_sprite is None
-            or self._scaled_sprite_size != target_size
-        ):
+        if self._scaled_sprite is None or self._scaled_sprite_size != target_size:
             self._scaled_sprite = pygame.transform.smoothscale(
                 self.sprite,
                 target_size,
@@ -345,16 +334,8 @@ class KingTower(Structure):
             round(self.position.y * scale_y),
         )
 
-        source_width = (
-            self.sprite.get_width()
-            if self.sprite is not None
-            else 64
-        )
-        source_height = (
-            self.sprite.get_height()
-            if self.sprite is not None
-            else 64
-        )
+        source_width = self.sprite.get_width() if self.sprite is not None else 64
+        source_height = self.sprite.get_height() if self.sprite is not None else 64
 
         target_size = (
             max(
@@ -447,9 +428,7 @@ class KingTower(Structure):
 
         if self.alive:
             health_color = (
-                (65, 220, 90)
-                if self.health_fraction > 0.3
-                else (235, 75, 65)
+                (65, 220, 90) if self.health_fraction > 0.3 else (235, 75, 65)
             )
 
             pygame.draw.rect(

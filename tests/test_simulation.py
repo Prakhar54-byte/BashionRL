@@ -9,7 +9,7 @@ from src.game.state.game_state import GameStatus
 
 def test_placement_is_atomic_and_reset_clears_episode():
     sim = Simulation(seed=5)
-    assert len(sim.defense_slots.slots) == 31
+    assert len(sim.defense_slots.slots) == 46
     assert sim.place_tower(0, "double_cannon")
     assert sim.state.resource_balance == 50
     assert not sim.place_tower(0, "cannon")
@@ -24,7 +24,7 @@ def test_placement_is_atomic_and_reset_clears_episode():
     assert sim.waves_completed == sim.ticks == 0
 
 
-def test_kill_and_leak_are_accounted_once():
+def test_kill_and_route_exit_are_accounted_once():
     sim = Simulation(seed=5)
     sim._spawn_enemy("enemy1")
     sim.enemies[0].take_damage(100)
@@ -32,13 +32,19 @@ def test_kill_and_leak_are_accounted_once():
     sim.tick()
     assert sim.state.enemies_killed == 1
     assert sim.state.resource_balance == 225
+
     sim._spawn_enemy("enemy2")
-    sim.enemies[0].reached_end = True
+    exiting_enemy = sim.enemies[0]
+    exiting_enemy.exited_route = True
+    exiting_enemy.alive = False
     sim.tick()
-    sim.tick()
-    assert sim.state.enemies_leaked == 1
-    assert sim.state.base_health == 90
+
+    # The current objective is protecting King Towers; route exits do not
+    # apply legacy global base-health damage or count as kills.
+    assert sim.state.enemies_leaked == 0
+    assert sim.state.base_health == 100
     assert sim.state.enemies_killed == 1
+    assert not sim.enemies
 
 
 def test_final_wave_requires_all_spawns_and_enemies_to_clear():
@@ -72,9 +78,15 @@ def test_no_defenses_eventually_loses_and_stops():
         sim.tick()
         if sim.state.is_terminal:
             break
+
     assert sim.state.status == GameStatus.LOST
-    assert sim.state.enemies_leaked == 10
+    assert sim.state.all_king_towers_destroyed
+    assert sim.state.enemies_leaked == 0
     assert sim.state.enemies_killed == 0
+
+    previous_ticks = sim.ticks
+    sim.tick()
+    assert sim.ticks == previous_ticks
 
 
 def test_frame_grouping_does_not_change_simulation():

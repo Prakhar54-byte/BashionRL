@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -55,11 +54,7 @@ class Pathway:
         else:
             # Preserve the original single-path behavior where possible.
             selected = next(
-                (
-                    route
-                    for route in routes
-                    if route[0].casefold() == "pathway"
-                ),
+                (route for route in routes if route[0].casefold() == "pathway"),
                 None,
             )
 
@@ -80,9 +75,7 @@ class Pathway:
     def _read_map(map_path: Path) -> dict[str, Any]:
         """Load and validate a Tiled JSON map."""
         if not map_path.is_file():
-            raise FileNotFoundError(
-                f"Pathway map not found: {map_path}"
-            )
+            raise FileNotFoundError(f"Pathway map not found: {map_path}")
 
         with map_path.open("r", encoding="utf-8") as file:
             map_data = json.load(file)
@@ -95,16 +88,10 @@ class Pathway:
             "layers",
         )
 
-        missing = [
-            field
-            for field in required_fields
-            if field not in map_data
-        ]
+        missing = [field for field in required_fields if field not in map_data]
 
         if missing:
-            raise ValueError(
-                f"Tiled map is missing required fields: {missing}"
-            )
+            raise ValueError(f"Tiled map is missing required fields: {missing}")
 
         for field in ("width", "height", "tilewidth", "tileheight"):
             value = map_data[field]
@@ -115,9 +102,7 @@ class Pathway:
                 or not math.isfinite(value)
                 or value <= 0
             ):
-                raise ValueError(
-                    f"Tiled map field '{field}' must be positive."
-                )
+                raise ValueError(f"Tiled map field '{field}' must be positive.")
 
         return map_data
 
@@ -126,9 +111,7 @@ class Pathway:
         map_data: dict[str, Any],
     ) -> list[tuple[str, dict[str, Any], dict[str, Any]]]:
         """Find route polylines regardless of the layer's visibility."""
-        routes: list[
-            tuple[str, dict[str, Any], dict[str, Any]]
-        ] = []
+        routes: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
 
         for layer in map_data.get("layers", []):
             if layer.get("type") != "objectgroup":
@@ -138,11 +121,8 @@ class Pathway:
                 name = str(obj.get("name", "")).strip()
                 normalized_name = name.casefold()
 
-                is_route = (
-                    normalized_name == "pathway"
-                    or normalized_name.startswith("pathway_")
-                    or normalized_name.startswith("soldier_path")
-                    or normalized_name.startswith("tank_path")
+                is_route = normalized_name == "pathway" or normalized_name.startswith(
+                    ("pathway_", "soldier_path", "tank_path")
                 )
 
                 if not is_route:
@@ -152,8 +132,7 @@ class Pathway:
 
                 if not isinstance(polyline, list) or len(polyline) < 2:
                     raise ValueError(
-                        f"Route '{name}' must contain at least "
-                        "two polyline points."
+                        f"Route '{name}' must contain at least two polyline points."
                     )
 
                 routes.append((name, obj, layer))
@@ -161,9 +140,7 @@ class Pathway:
         names = [name.casefold() for name, _, _ in routes]
 
         if len(names) != len(set(names)):
-            raise ValueError(
-                "Route object names must be unique, ignoring case."
-            )
+            raise ValueError("Route object names must be unique, ignoring case.")
 
         return routes
 
@@ -189,12 +166,8 @@ class Pathway:
         # Convenient identifier to assign to spawned enemies.
         self.lane_id = route_name
 
-        self.map_width = int(
-            map_data["width"] * map_data["tilewidth"]
-        )
-        self.map_height = int(
-            map_data["height"] * map_data["tileheight"]
-        )
+        self.map_width = int(map_data["width"] * map_data["tilewidth"])
+        self.map_height = int(map_data["height"] * map_data["tileheight"])
 
         tile_width = float(map_data["tilewidth"])
         tile_height = float(map_data["tileheight"])
@@ -213,9 +186,7 @@ class Pathway:
         rotation = float(obj.get("rotation", 0))
 
         if not math.isfinite(rotation):
-            raise ValueError(
-                f"Route '{route_name}' has an invalid rotation."
-            )
+            raise ValueError(f"Route '{route_name}' has an invalid rotation.")
 
         angle = math.radians(rotation)
         cos_angle = math.cos(angle)
@@ -229,26 +200,17 @@ class Pathway:
                 local_y = float(point["y"])
             except (KeyError, TypeError, ValueError) as exc:
                 raise ValueError(
-                    f"Route '{route_name}' has an invalid point "
-                    f"at index {index}."
+                    f"Route '{route_name}' has an invalid point at index {index}."
                 ) from exc
 
-            if not (
-                math.isfinite(local_x)
-                and math.isfinite(local_y)
-            ):
+            if not (math.isfinite(local_x) and math.isfinite(local_y)):
                 raise ValueError(
-                    f"Route '{route_name}' has non-finite "
-                    f"coordinates at point {index}."
+                    f"Route '{route_name}' has non-finite coordinates at point {index}."
                 )
 
             # Apply rotation about the Tiled object's origin.
-            rotated_x = (
-                local_x * cos_angle - local_y * sin_angle
-            )
-            rotated_y = (
-                local_x * sin_angle + local_y * cos_angle
-            )
+            rotated_x = local_x * cos_angle - local_y * sin_angle
+            rotated_y = local_x * sin_angle + local_y * cos_angle
 
             world_point = pygame.Vector2(
                 object_x + rotated_x,
@@ -270,9 +232,7 @@ class Pathway:
             self.points.append(world_point)
 
         for index in range(len(self.points) - 1):
-            if self.points[index].distance_squared_to(
-                self.points[index + 1]
-            ) <= 1e-12:
+            if self.points[index].distance_squared_to(self.points[index + 1]) <= 1e-12:
                 raise ValueError(
                     f"Route '{route_name}' has duplicate consecutive "
                     f"points at index {index}."
@@ -318,15 +278,12 @@ class Pathway:
             ]
         else:
             selected_routes = [
-                route
-                for route in routes
-                if route[0].casefold().startswith("tank_path")
+                route for route in routes if route[0].casefold().startswith("tank_path")
             ]
 
         if not selected_routes:
             raise ValueError(
-                f"No routes were found for family '{normalized_family}' "
-                f"in {map_path}."
+                f"No routes were found for family '{normalized_family}' in {map_path}."
             )
 
         pathways: list[Pathway] = []

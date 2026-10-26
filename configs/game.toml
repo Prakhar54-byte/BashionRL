@@ -107,6 +107,9 @@ size_scale = 1.0
 
 [king_tower]
 max_health = 500.0
+repair_cost = 50
+repair_duration = 8.0
+size_scale = 1.0
 
 [economy]
 passive_income_interval = 15.0

@@ -23,6 +23,8 @@ class KingTower(Structure):
 
     CROWN_EMOJI = "👑"
 
+    structure_kind = "king"
+
     def __init__(
         self,
         structure_id: int | str,
@@ -33,6 +35,7 @@ class KingTower(Structure):
         repair_duration: float = 8.0,
         repair_cost: int = 50,
         size_scale: float = 1.0,
+        on_health_changed=None,
     ) -> None:
         if (
             isinstance(repair_duration, bool)
@@ -64,6 +67,7 @@ class KingTower(Structure):
             structure_id=structure_id,
             position=position,
             max_health=max_health,
+            on_health_changed=on_health_changed,
         )
 
         self.sprite = sprite
@@ -82,6 +86,12 @@ class KingTower(Structure):
 
     # ------------------------------------------------------------------
     # Repair state
+
+    def take_damage(self, amount: float) -> float:
+        damage = super().take_damage(amount)
+        if self.destroyed:
+            self.cancel_repair()
+        return damage
 
     @property
     def repair_progress(self) -> float:
@@ -110,7 +120,7 @@ class KingTower(Structure):
         *,
         repair_amount: float | None = None,
     ) -> bool:
-        """Start timed repair.
+        """Start timed reconstruction of a destroyed King Tower.
 
         Simulation must validate the game state and charge the resource
         cost before calling this method.
@@ -118,7 +128,7 @@ class KingTower(Structure):
         A destroyed King Tower can be repaired while the game remains
         active, provided the overall defeat condition has not triggered.
         """
-        if self.repairing or self.health >= self.max_health:
+        if self.repairing or not self.destroyed:
             return False
 
         if repair_amount is None:

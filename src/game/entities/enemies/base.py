@@ -49,6 +49,9 @@ class Enemy:
 
         self.max_health = config.max_health
         self.health = config.max_health
+        self.on_damage = None
+        self._attack_target = None
+        self._attack_cooldown = 0.0
 
         self.position = pathway.points[0].copy()
         self.waypoint_index = 1
@@ -84,6 +87,18 @@ class Enemy:
         distinguish enemy families without ``isinstance`` checks.
         """
         return False
+
+    @property
+    def target(self):
+        return self._attack_target
+
+    @property
+    def attack_range(self):
+        return self.config.attack_range
+
+    @property
+    def attack_cooldown(self):
+        return self._attack_cooldown
 
     # ------------------------------------------------------------------
     # Static helpers
@@ -174,7 +189,10 @@ class Enemy:
         if not self.alive:
             return
 
+        previous_health = self.health
         self.health = max(0.0, self.health - amount)
+        if self.on_damage is not None and self.health < previous_health:
+            self.on_damage(self, previous_health - self.health)
 
         if self.health <= 0.0:
             self.alive = False

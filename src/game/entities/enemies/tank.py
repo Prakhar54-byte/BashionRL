@@ -22,7 +22,6 @@ from src.game.terrain.pathway import Pathway
 class Tank(Enemy):
     """Tank with independent turret aiming and structure combat."""
 
-    PROJECTILE_SPEED = 320.0
     MINIMUM_ATTACK_RANGE = 300.0
 
     def __init__(
@@ -53,6 +52,10 @@ class Tank(Enemy):
     def is_tank(self) -> bool:
         """Identify this enemy as a tank."""
         return True
+
+    @property
+    def attack_range(self):
+        return max(float(self.config.attack_range), self.MINIMUM_ATTACK_RANGE)
 
     # ------------------------------------------------------------------
     # Turret aiming
@@ -112,24 +115,13 @@ class Tank(Enemy):
             self.projectiles.clear()
             return
 
-        # Advance projectiles already in flight.
-        for projectile in self.projectiles:
-            projectile.update(delta_time)
-
-        self.projectiles = [
-            projectile for projectile in self.projectiles if projectile.alive
-        ]
-
         # Advance weapon cooldown.
         self._attack_cooldown = max(
             0.0,
             self._attack_cooldown - delta_time,
         )
 
-        attack_range = max(
-            float(self.config.attack_range),
-            self.MINIMUM_ATTACK_RANGE,
-        )
+        attack_range = self.attack_range
         range_squared = attack_range * attack_range
 
         # All three structure types are valid targets.
@@ -166,7 +158,7 @@ class Tank(Enemy):
                 Projectile(
                     position=pygame.Vector2(self.position),
                     target=target,
-                    speed=self.PROJECTILE_SPEED,
+                    speed=self.config.projectile_speed,
                     damage=self.config.attack_damage,
                 )
             )

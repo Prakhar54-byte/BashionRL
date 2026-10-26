@@ -25,8 +25,7 @@ class GameState:
     - Track destroyed King Towers.
     - Immediately lose the episode when every King Tower is destroyed.
 
-    Base-health tracking is retained temporarily for compatibility with the
-    existing Simulation while its objective and leak logic are being updated.
+    Base health reports combined King health; leak damage is telemetry only.
     """
 
     max_base_health: float = 100.0
@@ -46,6 +45,7 @@ class GameState:
     enemies_killed: int = field(default=0, init=False)
     enemies_leaked: int = field(default=0, init=False)
     total_leak_damage: float = field(default=0.0, init=False)
+    total_base_damage: float = field(default=0.0, init=False)
 
     _destroyed_king_tower_ids: set[KingTowerId] = field(
         default_factory=set,
@@ -135,12 +135,7 @@ class GameState:
         self.resources.earn(reward)
 
     def register_leak(self, damage: float) -> None:
-        """Record a leaking enemy and apply legacy base-health damage.
-
-        This behavior is retained for compatibility with the existing
-        Simulation. The new King Tower objective logic will be integrated
-        when Simulation is rewritten.
-        """
+        """Record endpoint arrivals; King destruction determines defeat."""
         if not math.isfinite(damage) or damage < 0:
             raise ValueError("Leak damage must be finite and non-negative.")
 
@@ -149,10 +144,6 @@ class GameState:
 
         self.enemies_leaked += 1
         self.total_leak_damage += damage
-        self.base_health = max(0.0, self.base_health - damage)
-
-        if self.base_health <= 0:
-            self.mark_lost()
 
     def register_king_tower_destroyed(
         self,
@@ -209,6 +200,7 @@ class GameState:
         self.enemies_killed = 0
         self.enemies_leaked = 0
         self.total_leak_damage = 0.0
+        self.total_base_damage = 0.0
 
         self._destroyed_king_tower_ids.clear()
 

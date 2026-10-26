@@ -46,7 +46,7 @@ class Projectile:
         self.damage = float(damage)
         self.alive = True
 
-    def update(self, delta_time: float) -> None:
+    def update(self, delta_time: float, valid_targets=None) -> None:
         """Move toward the target and apply damage when it is reached."""
         if not self.alive:
             return
@@ -60,13 +60,7 @@ class Projectile:
             raise ValueError("Delta time must be finite and non-negative.")
 
         # Stop if the target has been destroyed.
-        if not self.target.alive:
-            self.alive = False
-            return
-
-        # Enemies that reach the end of their route are no longer valid
-        # targets. Structures do not have a reached_end attribute.
-        if isinstance(self.target, Enemy) and self.target.reached_end:
+        if not self.target.alive or (valid_targets is not None and self.target not in valid_targets):
             self.alive = False
             return
 

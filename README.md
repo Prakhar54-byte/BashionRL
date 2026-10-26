@@ -12,6 +12,14 @@
 
 The project is an RL testbed inspired by real-world resource allocation and infrastructure protection. It is not a validated real-world deployment.
 
+## Screenshots
+
+The following screenshots show the project as captured in the repository.
+
+| Screenshot 1 | Screenshot 2 |
+|---|---|
+| ![BastionRL screenshot 1](docs/screenshots/1.png) | ![BastionRL screenshot 2](docs/screenshots/2.png) |
+
 ## Overview
 
 - **Environment:** Pygame simulation with map geometry and routes loaded from Tiled.

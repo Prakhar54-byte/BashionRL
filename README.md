@@ -1,5 +1,13 @@
 # BastionRL
 
+## Project contributors
+
+| Name | Roll number |
+|---|---|
+| Prasangeet Dongre | B23CH1033 |
+| Prakhar Rashmikant Chauhan | B23BB1032 |
+
+
 **BastionRL** is a 2D tower-defense simulation used to study sequential decisions under limited resources. A reinforcement-learning agent learns when and where to build defenses, invest in resource production, and reconstruct destroyed King Towers while enemy waves evolve.
 
 The project is an RL testbed inspired by real-world resource allocation and infrastructure protection. It is not a validated real-world deployment.
@@ -204,6 +212,42 @@ uv run --extra rl python -m src.game.rl evaluate \
 ```
 
 Choose a seed range not used during training-time model selection before describing an evaluation as held out.
+
+## Training and diagnostic plots
+
+The repository includes plots for inspecting training behavior and PPO optimization. These support analysis and transparency; they are **not, by themselves, evidence of a successful or generalizable policy**. Win-rate, goal-success-rate, and held-out-outcome plots are intentionally omitted here.
+
+### Training behavior
+
+![Training return over the run](submission/plots/01_training_return.png)
+
+*Training return is a learning signal; interpret it alongside the reward definition and independent evaluation.*
+
+### Environment progress metrics
+
+| Validation waves completed | Remaining King health |
+|---|---|
+| ![Validation waves](submission/plots/03_validation_waves.png) | ![Validation King health](submission/plots/04_validation_king_health.png) |
+
+*These show metrics beyond win rate. Interpret them with the evaluation configuration and episode seeds.*
+
+### PPO optimization diagnostics
+
+| Critic explained variance | Policy KL divergence |
+|---|---|
+| ![Critic explained variance](submission/plots/05_critic_explained_variance.png) | ![Policy KL divergence](submission/plots/06_policy_kl.png) |
+
+| Learning-rate schedule | Entropy-coefficient schedule |
+|---|---|
+| ![Learning rate](submission/plots/07_learning_rate.png) | ![Entropy coefficient](submission/plots/08_entropy_coefficient.png) |
+
+### Curriculum and action-selection diagnostics
+
+| Curriculum goal during training | Learned action distribution |
+|---|---|
+| ![Curriculum goal](submission/plots/09_curriculum_goal.png) | ![Learned action diagnostics](submission/plots/14_learned_actions.png) |
+
+Open the [full plots directory](submission/plots/) to inspect additional files. PDF versions are available alongside the PNGs.
 
 ## Tests and code quality
 

@@ -33,7 +33,7 @@ The submitted decision-making agent is trained with PPO. A scripted diagnostic, 
 
 ## The RL formulation
 
-The environment is modelled as an episodic Markov decision process, `M = (S, A, P, R, γ)`. Enemy movement, attacks, projectiles, wave progression, resource income, structure damage, repairs, and terminal outcomes are simulated by the environment.
+The underlying simulator is modelled as an episodic Markov decision process, `M = (S, A, P, R, γ)`. Enemy movement, attacks, projectiles, wave progression, resource income, structure damage, repairs, and terminal outcomes are simulated by the environment. The agent receives a compact partial observation of the simulator state.
 
 ### State space (`S`)
 
@@ -44,6 +44,8 @@ The observation is a 1,462-dimensional `float32` vector bounded to `[0, 1]`. It 
 - Occupancy and route-proximity features for defense and resource slots.
 - Health, status, and repair information for the three King Towers.
 - A padded/truncated representation of up to 64 active enemies.
+
+Enemy truncation and summarized combat information omit parts of the full simulator state. The observation is therefore a partially observed representation and is not guaranteed to be Markov on its own.
 
 ### Action space (`A`)
 
@@ -60,7 +62,7 @@ An action mask identifies legal actions based on affordability, slot occupancy, 
 
 ### Reward function (`R`)
 
-The reward combines progress toward the objective with costs and damage. Let `ΔD` be damage dealt to enemies, `ΔK` enemies killed, `ΔB` King Tower damage received, `H₀` the maximum combined King health, `ΔW` waves completed, and `ΔC` resources spent during a transition. The implemented reward is equivalent to:
+The reward combines progress toward the objective with costs and damage. Let `ΔD` be the sum of actual damage dealt to each enemy divided by that enemy's maximum HP during a transition: `ΔD = Σᵢ (damageᵢ / max_HPᵢ)`. Let `ΔK` be enemies killed, `ΔB` King Tower damage received, `H₀` the maximum combined King health, `ΔW` waves completed, and `ΔC` resources spent during that transition. The implemented reward is equivalent to:
 
 ```text
 r = 0.05 × max(0, ΔD)
@@ -144,14 +146,14 @@ submission/model/best_model.vecnormalize.pkl
 
 ### Evaluate the trained policy
 
-Use an evaluation seed range that was not used for checkpoint selection if you intend to report it as a held-out test. Change `--seed` when necessary to keep the final test independent.
+To reproduce the report's evaluation, use the released checkpoint for 100 baseline episodes with seeds 90000–90099 (`--seed 90000 --episodes 100`). This range is separate from the checkpoint-selection seeds 10000–10029. For a new held-out test, choose another seed range that was not used for checkpoint selection.
 
 ```sh
 uv run --extra rl python -m src.game.rl evaluate \
   --difficulty baseline \
   --model submission/model/best_model.zip \
   --episodes 100 \
-  --seed 123456 \
+  --seed 90000 \
   --max-steps 2400 \
   --output runs/evaluation-baseline.json
 ```
@@ -167,7 +169,7 @@ uv run --extra rl python -m src.game.rl evaluate \
   --difficulty baseline \
   --policy random \
   --episodes 100 \
-  --seed 123456 \
+  --seed 90000 \
   --max-steps 2400 \
   --output runs/evaluation-random.json
 ```

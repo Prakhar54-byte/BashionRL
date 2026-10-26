@@ -41,8 +41,8 @@ def test_kill_and_route_exit_are_accounted_once():
 
     # The current objective is protecting King Towers; route exits do not
     # apply legacy global base-health damage or count as kills.
-    assert sim.state.enemies_leaked == 0
-    assert sim.state.base_health == 100
+    assert sim.state.enemies_leaked == 1
+    assert sim.state.base_health == sum(king.health for king in sim.king_towers)
     assert sim.state.enemies_killed == 1
     assert not sim.enemies
 
@@ -81,7 +81,7 @@ def test_no_defenses_eventually_loses_and_stops():
 
     assert sim.state.status == GameStatus.LOST
     assert sim.state.all_king_towers_destroyed
-    assert sim.state.enemies_leaked == 0
+    assert sim.state.enemies_leaked > 0
     assert sim.state.enemies_killed == 0
 
     previous_ticks = sim.ticks

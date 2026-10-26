@@ -18,6 +18,7 @@ class EnemyConfig:
     attack_damage: float = 15.0
     attack_range: float = 45.0
     attack_interval: float = 1.0
+    projectile_speed: float = 320.0
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
@@ -31,6 +32,7 @@ class EnemyConfig:
             "attack_damage": self.attack_damage,
             "attack_range": self.attack_range,
             "attack_interval": self.attack_interval,
+            "projectile_speed": self.projectile_speed,
         }
 
         for name, value in numeric_values.items():
@@ -48,6 +50,7 @@ class EnemyConfig:
             "attack_damage",
             "attack_range",
             "attack_interval",
+            "projectile_speed",
         ):
             if getattr(self, name) <= 0:
                 raise ValueError(f"Enemy {name} must be positive.")

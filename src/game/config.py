@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import math
 import tomllib
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
 from src.game.entities.enemies.config import EnemyConfig
+from src.game.entities.towers import KingTower
 from src.game.systems.wave_director import WaveConfig
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -165,6 +166,17 @@ class ResourceTowerConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class KingTowerConfig:
+    max_health: float = 500.0
+    repair_cost: int = 50
+    repair_duration: float = 8.0
+    size_scale: float = 1.0
+
+    def __post_init__(self):
+        KingTower("config", (0, 0), **asdict(self))
+
+
+@dataclass(frozen=True, slots=True)
 class DifficultyConfig:
     """Episode limits, starting resources, and wave-generation settings."""
 
@@ -236,12 +248,16 @@ class GameConfig:
     enemies: dict[str, EnemyConfig]
     towers: dict[str, TowerConfig]
     resource_tower: ResourceTowerConfig
-    king_tower_max_health: float
+    king_tower: KingTowerConfig
     difficulties: dict[str, DifficultyConfig]
 
     # Passive income during preparation, combat, and intermissions.
     passive_income_interval: float = 15.0
     passive_income_amount: int = 50
+
+    @property
+    def king_tower_max_health(self) -> float:
+        return self.king_tower.max_health
 
 
 def _resolve_asset_path(asset_path: str) -> Path:
@@ -365,30 +381,13 @@ def _parse_resource_tower_config(
     return ResourceTowerConfig(**values)
 
 
-def _parse_king_tower_max_health(values: Any) -> float:
-    """Parse and validate King Tower maximum health."""
+def _parse_king_tower_config(values: Any) -> KingTowerConfig:
     if not isinstance(values, dict):
         raise TypeError("The [king_tower] configuration must be a TOML table.")
-
-    allowed_keys = {"max_health"}
-    unexpected_keys = set(values) - allowed_keys
-
-    if unexpected_keys:
-        raise ValueError(
-            f"Unknown King Tower configuration keys: {sorted(unexpected_keys)}"
-        )
-
-    max_health = values.get("max_health", 500.0)
-
-    if (
-        isinstance(max_health, bool)
-        or not isinstance(max_health, (int, float))
-        or not math.isfinite(max_health)
-        or max_health <= 0
-    ):
-        raise ValueError("King Tower maximum health must be finite and positive.")
-
-    return float(max_health)
+    unexpected = set(values) - set(KingTowerConfig.__dataclass_fields__)
+    if unexpected:
+        raise ValueError(f"Unknown King Tower configuration keys: {sorted(unexpected)}")
+    return KingTowerConfig(**values)
 
 
 def _parse_economy_config(
@@ -512,7 +511,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
 
     resource_tower_config = _parse_resource_tower_config(data.get("resource_tower", {}))
 
-    king_tower_max_health = _parse_king_tower_max_health(data.get("king_tower", {}))
+    king_tower_config = _parse_king_tower_config(data.get("king_tower", {}))
 
     (
         passive_income_interval,
@@ -570,7 +569,7 @@ def load_config(path: Path = CONFIG_PATH) -> GameConfig:
         enemies=enemy_configs,
         towers=tower_configs,
         resource_tower=resource_tower_config,
-        king_tower_max_health=king_tower_max_health,
+        king_tower=king_tower_config,
         difficulties=difficulty_configs,
         passive_income_interval=passive_income_interval,
         passive_income_amount=passive_income_amount,

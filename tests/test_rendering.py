@@ -101,3 +101,47 @@ def test_enemy_cache_preserves_pixels_and_refreshes_on_turns(
             expected, "RGBA"
         )
     assert rotate.call_count == 3
+
+
+@pytest.mark.parametrize("kind", ["defense", "resource", "king"])
+def test_damaged_and_destroyed_structures_remain_visible(rendered_simulation, kind):
+    sim = rendered_simulation
+    if kind == "defense":
+        assert sim.place_tower(0, "cannon")
+        target = sim.towers[0]
+    elif kind == "resource":
+        assert sim.place_resource_tower(0)
+        target = sim.resource_towers[0]
+    else:
+        target = sim.king_towers[0]
+    target.position = pygame.Vector2(480, 320)
+    screen = pygame.Surface((960, 640), pygame.SRCALPHA)
+    target.take_damage(target.max_health / 2)
+    target.draw(screen, 960, 640)
+    damaged = pygame.image.tobytes(screen, "RGBA")
+    pixels = pygame.surfarray.array3d(screen)
+    health_color = (65, 210, 85) if kind == "resource" else (65, 220, 90)
+    assert ((pixels == health_color).all(axis=2)).any()
+    assert ((pixels == (55, 25, 25)).all(axis=2)).any()
+    target.destroy()
+    screen.fill((0, 0, 0, 0))
+    target.draw(screen, 960, 640)
+    assert pygame.image.tobytes(screen, "RGBA") != damaged
+    assert screen.get_at((480, 320)).a > 0
+
+
+def test_tank_gun_aims_independently_of_chassis(rendered_simulation):
+    sim = rendered_simulation
+    sim._spawn_enemy("light_tank")
+    tank = sim.enemies[0]
+    tank.position = pygame.Vector2(480, 320)
+    king = sim.king_towers[0]
+    king.position = tank.position + pygame.Vector2(0, -100)
+    direction = tank.direction.copy()
+    before = pygame.Surface((960, 640), pygame.SRCALPHA)
+    tank.draw(before)
+    tank.update_combat(0, [], king_towers=[king])
+    after = pygame.Surface((960, 640), pygame.SRCALPHA)
+    tank.draw(after)
+    assert tank.direction == direction and tank.gun_angle == pytest.approx(90)
+    assert pygame.image.tobytes(before, "RGBA") != pygame.image.tobytes(after, "RGBA")

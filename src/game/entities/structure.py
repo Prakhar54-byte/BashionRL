@@ -27,11 +27,15 @@ class Structure:
     resource costs, targeting, or income generation.
     """
 
+    structure_kind = "structure"
+
     def __init__(
         self,
         structure_id: StructureId,
         position: pygame.Vector2,
         max_health: float,
+        *,
+        on_health_changed=None,
     ) -> None:
         self._validate_structure_id(structure_id)
 
@@ -43,8 +47,13 @@ class Structure:
                     "Structure position must contain valid x and y coordinates."
                 ) from exc
 
-        if not (math.isfinite(position.x) and math.isfinite(position.y)):
-            raise ValueError("Structure position coordinates must be finite.")
+        if not (
+            math.isfinite(position.x)
+            and math.isfinite(position.y)
+        ):
+            raise ValueError(
+                "Structure position coordinates must be finite."
+            )
 
         if (
             isinstance(max_health, bool)
@@ -52,13 +61,16 @@ class Structure:
             or not math.isfinite(max_health)
             or max_health <= 0
         ):
-            raise ValueError("Maximum health must be finite and positive.")
+            raise ValueError(
+                "Maximum health must be finite and positive."
+            )
 
         self.structure_id = structure_id
         self.position = position.copy()
 
         self.max_health = float(max_health)
         self._health = self.max_health
+        self.on_health_changed = on_health_changed
 
     @staticmethod
     def _validate_structure_id(
@@ -66,7 +78,9 @@ class Structure:
     ) -> None:
         """Validate a structure's identifier."""
         if isinstance(structure_id, bool):
-            raise TypeError("Structure ID must be a non-empty string or integer.")
+            raise TypeError(
+                "Structure ID must be a non-empty string or integer."
+            )
 
         if isinstance(structure_id, int):
             return
@@ -74,7 +88,9 @@ class Structure:
         if isinstance(structure_id, str) and structure_id.strip():
             return
 
-        raise ValueError("Structure ID must be a non-empty string or integer.")
+        raise ValueError(
+            "Structure ID must be a non-empty string or integer."
+        )
 
     @property
     def health(self) -> float:
@@ -110,22 +126,15 @@ class Structure:
         previous_health = self._health
         self._health = max(0.0, self._health - amount)
 
+        self._notify_health_changed(previous_health)
         return previous_health - self._health
 
     def destroy(self) -> None:
         """Immediately destroy this structure."""
-        self._health = 0.0
+        self.take_damage(self.health)
 
     def _restore_health(self, amount: float) -> float:
-        """Restore health for use by a subclass's completed repair action.
-
-        This method does not start a repair or advance a repair timer.
-        KingTower should call it only after its configured repair
-        duration has elapsed and the simulation has approved the repair.
-
-        Returns:
-            The amount of health actually restored.
-        """
+        """Apply gradual healing and notify the simulation of the health change."""
         self._validate_amount(amount, "Restoration amount")
 
         if amount == 0.0:
@@ -137,7 +146,12 @@ class Structure:
             self._health + amount,
         )
 
+        self._notify_health_changed(previous_health)
         return self._health - previous_health
+
+    def _notify_health_changed(self, previous_health):
+        if self.on_health_changed is not None and self.health != previous_health:
+            self.on_health_changed(self, previous_health)
 
     @staticmethod
     def _validate_amount(
@@ -145,11 +159,15 @@ class Structure:
         label: str,
     ) -> None:
         """Ensure damage and health restoration amounts are valid."""
-        if isinstance(amount, bool) or not isinstance(amount, (int, float)):
+        if isinstance(amount, bool) or not isinstance(
+            amount, (int, float)
+        ):
             raise TypeError(f"{label} must be numeric.")
 
         if not math.isfinite(amount) or amount < 0:
-            raise ValueError(f"{label} must be finite and non-negative.")
+            raise ValueError(
+                f"{label} must be finite and non-negative."
+            )
 
     def __repr__(self) -> str:
         """Return a concise representation useful for debugging."""

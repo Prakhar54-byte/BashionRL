@@ -21,6 +21,8 @@ from src.game.entities.structure import Structure
 class ResourceTower(Structure):
     """Damageable resource-producing structure."""
 
+    structure_kind = "resource"
+
     def __init__(
         self,
         tower_id: int | str,
@@ -31,6 +33,7 @@ class ResourceTower(Structure):
         production_interval: float = 10.0,
         production_amount: int = 50,
         size_scale: float = 1.0,
+        on_health_changed=None,
     ) -> None:
         """Initialize the tower, its durability, and its production settings."""
         if isinstance(tower_id, bool) or not isinstance(tower_id, (int, str)):
@@ -63,6 +66,7 @@ class ResourceTower(Structure):
             structure_id=tower_id,
             position=position,
             max_health=float(max_health),
+            on_health_changed=on_health_changed,
         )
 
         # Explicitly expose the placement ID for simulation slot management.

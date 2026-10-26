@@ -237,7 +237,7 @@ def draw_hud(
         (226, 233, 241),
     )
     instructions = font.render(
-        "Click slot: build  ·  Click King: repair  ·  R reset  ·  ESC quit",
+        "Click slot: build  ·  Click destroyed King: repair  ·  R reset  ·  ESC quit",
         True,
         (165, 185, 205),
     )

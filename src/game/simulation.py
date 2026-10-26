@@ -112,11 +112,12 @@ class Simulation:
         self._load_assets(render_assets=render_assets)
 
         self.state = GameState(
-            max_base_health=self.balance.base_health,
+            max_base_health=len(self.king_tower_slots.slots) * self.config.king_tower.max_health,
             starting_resources=self.balance.starting_resources,
             king_tower_count=len(self.king_tower_slots.slots),
         )
 
+        self.projectiles = []
         self.enemies: list[Enemy] = []
         self.towers: list[DefenseTower] = []
         self.resource_towers: list[ResourceTower] = []
@@ -228,6 +229,11 @@ class Simulation:
     def reset(self, *, seed: int | None = None) -> None:
         """Reset the episode, structures, economy, and wave scheduling."""
         self.state.reset()
+        self.projectiles.clear()
+        self.structures_destroyed = 0
+        self.total_enemy_damage = 0.0
+        self.events = []
+        self.defense_types_built = dict.fromkeys(self.tower_types, 0)
 
         # Clear entities in place to preserve references held by main.py.
         self.enemies.clear()
@@ -254,7 +260,8 @@ class Simulation:
                 structure_id=slot.slot_id,
                 position=slot.center,
                 sprite=self.king_tower_sprite,
-                max_health=self.config.king_tower_max_health,
+                on_health_changed=self._on_structure_health_changed,
+                **asdict(self.config.king_tower),
             )
 
             self.king_towers.append(king_tower)
@@ -273,11 +280,51 @@ class Simulation:
         self.ticks = 0
         self._accumulator = 0.0
 
+    @property
+    def structures(self):
+        return [*self.towers, *self.resource_towers, *self.king_towers]
+
+    def _on_structure_health_changed(self, structure, previous_health):
+        if self.state.is_terminal:
+            return
+        if structure.structure_kind == "king":
+            self.state.total_base_damage += max(0.0, previous_health - structure.health)
+            self.state.base_health = sum(king.health for king in self.king_towers)
+            if structure.alive:
+                self.state.register_king_tower_restored(structure.structure_id)
+            else:
+                self.state.register_king_tower_destroyed(structure.structure_id)
+        if previous_health > 0 and structure.destroyed:
+            self.structures_destroyed += 1
+            self.events.append({
+                "event": "structure_destroyed", "tick": self.ticks,
+                "wave": self.director.wave_number, "kind": structure.structure_kind,
+                "structure_id": structure.structure_id,
+                "tower_type": getattr(structure, "tower_type", None),
+                "resources": self.state.resource_balance,
+            })
+            if structure.structure_kind == "defense":
+                structure._burst_shots_remaining = 0
+                self.projectiles.extend(structure.projectiles)
+                structure.projectiles.clear()
+                slots = self.defense_slots
+            elif structure.structure_kind == "resource":
+                slots = self.resource_slots
+            else:
+                slots = None
+            if slots is not None:
+                for slot in slots.slots:
+                    if slot.slot_id == structure.structure_id:
+                        slot.occupied = False
+        if self.state.is_terminal:
+            for king in self.king_towers:
+                king.cancel_repair()
+
     # ------------------------------------------------------------------
     # Building placement
 
     def place_tower(self, slot_index: int, tower_type: str) -> bool:
-        """Place a configured defense tower if the slot is available and affordable."""
+        """Place a defense tower if its slot is available and affordable."""
         if tower_type not in self.config.towers:
             raise ValueError(f"Unknown defense tower: {tower_type}")
 
@@ -296,31 +343,28 @@ class Simulation:
         if not self.state.resources.can_afford(tower_config.cost):
             return False
 
-        # Construct the tower using its configured combat and health values.
+        values = asdict(tower_config)
+        values.pop("name")
+        values.pop("cost")
+
         tower = DefenseTower(
             slot_id=slot.slot_id,
             position=slot.center,
             sprite=self.tower_sprites[tower_type],
             base_sprite=self.base_sprite,
-            range_radius=tower_config.range_radius,
-            damage=tower_config.damage,
-            fire_rate=tower_config.fire_rate,
-            projectile_speed=tower_config.projectile_speed,
-            max_health=tower_config.max_health,
-            size_scale=tower_config.size_scale,
-            base_size_scale=tower_config.base_size_scale,
-            shots_per_burst=tower_config.shots_per_burst,
-            burst_interval=tower_config.burst_interval,
+            on_health_changed=self._on_structure_health_changed,
+            **values,
         )
 
         tower.tower_type = tower_type
 
-        # Spend resources only after successfully constructing the tower.
         if not self.state.resources.spend(tower_config.cost):
             return False
 
+        self.towers[:] = [old for old in self.towers if old.slot_id != slot.slot_id]
         self.towers.append(tower)
         slot.occupied = True
+        self.defense_types_built[tower_type] += 1
 
         return True
 
@@ -349,12 +393,14 @@ class Simulation:
             tower_id=slot.slot_id,
             position=slot.center,
             sprite=self.resource_tower_sprite,
+            on_health_changed=self._on_structure_health_changed,
             **values,
         )
 
         if not self.state.resources.spend(config.cost):
             return False
 
+        self.resource_towers[:] = [old for old in self.resource_towers if old.structure_id != slot.slot_id]
         self.resource_towers.append(tower)
         slot.occupied = True
 
@@ -380,15 +426,16 @@ class Simulation:
         tower_id: int | str,
     ) -> bool:
         """Start a King Tower repair if the episode and economy allow it."""
-        if self.state.is_terminal:
+        if (self.state.is_terminal or isinstance(tower_id, bool)
+                or not isinstance(tower_id, (int, str))):
             return False
 
         tower = self._king_towers_by_id.get(tower_id)
 
         if tower is None:
-            raise ValueError(f"Unknown King Tower ID: {tower_id}")
+            return False
 
-        if tower.health >= tower.max_health:
+        if not tower.destroyed:
             return False
 
         if tower.repair_time_remaining > 0:
@@ -397,9 +444,13 @@ class Simulation:
         if not self.state.resources.can_afford(tower.repair_cost):
             return False
 
+        if tower.destroyed and not any(other.alive for other in self.king_towers if other is not tower):
+            return False
+
+        # start_repair may return None on success; only an explicit False
+        # is interpreted as a rejected repair.
         started = tower.start_repair()
 
-        # Some implementations return None on success.
         if started is False:
             return False
 
@@ -470,6 +521,7 @@ class Simulation:
                 config=scaled_config,
             )
 
+        enemy.on_damage = self._on_enemy_damage
         enemy.enemy_type = enemy_type
         enemy.route_name = route_name
 
@@ -478,6 +530,9 @@ class Simulation:
 
     # ------------------------------------------------------------------
     # Combat helpers
+
+    def _on_enemy_damage(self, enemy, damage):
+        self.total_enemy_damage += damage / enemy.max_health
 
     def _update_enemy_movement(self) -> bool:
         """Move enemies and handle soldier suicide attacks.
@@ -530,6 +585,7 @@ class Simulation:
 
                 # The soldier dies whenever it crosses the King Tower slot,
                 # even if the tower is already destroyed or missing.
+                self.state.register_leak(enemy.leak_damage)
                 enemy.suicide_attacked = True
                 enemy.alive = False
 
@@ -566,44 +622,28 @@ class Simulation:
                     king_towers=active_king_towers,
                     resource_towers=active_resource_towers,
                 )
+                self.projectiles.extend(enemy.projectiles)
+                enemy.projectiles.clear()
 
     def _update_defense_towers(self) -> None:
-        """Update player defense towers and their projectiles."""
+        """Fire living defenses; the simulation owns all shots already in flight."""
         for tower in self.towers:
-            if tower.alive:
-                tower.update(self.timestep, self.enemies)
+            tower.update(self.timestep, self.enemies)
+            self.projectiles.extend(tower.projectiles)
+            tower.projectiles.clear()
 
-        # Free the slots of destroyed defense towers and remove them.
-        destroyed_slot_ids = {tower.slot_id for tower in self.towers if tower.destroyed}
-
-        if destroyed_slot_ids:
-            for slot in self.defense_slots.slots:
-                if slot.slot_id in destroyed_slot_ids:
-                    slot.occupied = False
-
-            self.towers[:] = [tower for tower in self.towers if not tower.destroyed]
+    def _update_projectiles(self) -> None:
+        targets = [*self.enemies, *self.structures]
+        for projectile in self.projectiles:
+            projectile.update(self.timestep, targets)
+            if self.state.is_terminal:
+                return
+        self.projectiles[:] = [shot for shot in self.projectiles if shot.alive]
 
     def _update_resource_towers(self) -> None:
-        """Generate income and remove destroyed Resource Towers."""
+        """Only living resource towers produce income; retain ruins until rebuilt."""
         for tower in self.resource_towers:
-            if tower.alive:
-                earned = tower.update(self.timestep)
-
-                if earned > 0:
-                    self.state.resources.earn(earned)
-
-        destroyed_slot_ids = {
-            tower.tower_id for tower in self.resource_towers if tower.destroyed
-        }
-
-        if destroyed_slot_ids:
-            for slot in self.resource_slots.slots:
-                if slot.slot_id in destroyed_slot_ids:
-                    slot.occupied = False
-
-            self.resource_towers[:] = [
-                tower for tower in self.resource_towers if not tower.destroyed
-            ]
+            self.state.resources.earn(tower.update(self.timestep))
 
     def _update_king_towers(self) -> None:
         """Advance timed King Tower repairs."""
@@ -621,6 +661,10 @@ class Simulation:
                 and not enemy.exited_route
             ):
                 self.state.register_kill(enemy.config.kill_reward)
+
+        for enemy in self.enemies:
+            if enemy.exited_route:
+                self.state.register_leak(enemy.leak_damage)
 
         # Route exits alone do not inflict global base damage.
         self.enemies[:] = [enemy for enemy in self.enemies if enemy.alive]
@@ -657,6 +701,10 @@ class Simulation:
         # 5. Player defense towers attack enemies and update projectiles.
         self._update_defense_towers()
 
+        self._update_projectiles()
+        if self.state.is_terminal:
+            return
+
         # 6. Living Resource Towers generate their configured income.
         self._update_resource_towers()
 
@@ -669,15 +717,27 @@ class Simulation:
         # 8. Award rewards for actual kills and remove dead or exited enemies.
         self._award_kills_and_remove_dead_enemies()
 
-        # 9. Declare victory after the final wave has been completely cleared.
+        # Win after the final configured wave has been cleared.
         if (
             not self.state.is_terminal
-            and self.director.wave_number >= self.balance.max_waves
+            and self.director.wave_number > 0
             and self.director.enemies_remaining_to_spawn == 0
             and not self.enemies
         ):
-            self.waves_completed = self.director.wave_number
-            self.state.mark_won()
+            if self.waves_completed < self.director.wave_number:
+                self.waves_completed = self.director.wave_number
+                self.events.append({
+                    "event": "wave_completed", "tick": self.ticks,
+                    "wave": self.waves_completed, "resources": self.state.resource_balance,
+                    "base_health": self.state.base_health,
+                    "defenses_alive": sum(tower.alive for tower in self.towers),
+                    "defense_types_alive": {name: sum(tower.alive and tower.tower_type == name
+                                                      for tower in self.towers) for name in self.tower_types},
+                    "defense_types_built": dict(self.defense_types_built),
+                })
+
+            if self.waves_completed >= self.balance.max_waves:
+                self.state.mark_won()
 
     def advance(self, seconds: float) -> None:
         """Advance using a fixed timestep independent of rendering FPS."""

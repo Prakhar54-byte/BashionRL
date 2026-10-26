@@ -5,7 +5,6 @@ import argparse
 import pygame
 
 from src.game.config import load_config
-from src.game.entities.enemies import Tank
 from src.game.rendering.asset_loader import AssetLoader
 from src.game.rendering.terrain_renderer import TerrainRenderer
 from src.game.rendering.ui import (
@@ -81,7 +80,7 @@ def main() -> None:
         model = None
 
         if args.model:
-            from src.game.rl.checkpoint import load_model
+            from src.game.rl.checkpoint import load_model, policy_observation
             from src.game.rl.environment import BastionEnv
 
             env = BastionEnv(
@@ -130,6 +129,7 @@ def main() -> None:
         ai_elapsed = 0.0
         ai_step = None
         ai_finished = False
+        max_ai_ticks_per_frame = 8
 
         while running:
             delta_time = min(
@@ -193,7 +193,7 @@ def main() -> None:
             # Simulation / trained agent
             # ----------------------------------------------------------
             if env is not None and model is not None and not ai_finished:
-                ai_elapsed += delta_time
+                ai_elapsed = min(ai_elapsed + delta_time, simulation.timestep * max_ai_ticks_per_frame)
 
                 while ai_elapsed + 1e-12 >= simulation.timestep and not ai_finished:
                     ai_elapsed -= simulation.timestep
@@ -203,7 +203,7 @@ def main() -> None:
                         action_mask = env.action_masks()
 
                         action, _ = model.predict(
-                            observation,
+                            policy_observation(model, observation),
                             deterministic=True,
                             action_masks=action_mask,
                         )
@@ -256,17 +256,10 @@ def main() -> None:
                     map_height=pathway.map_height,
                 )
 
-            # Draw enemies and their projectiles.
             for enemy in enemies:
                 enemy.draw(screen)
-
-                if isinstance(enemy, Tank):
-                    for projectile in enemy.projectiles:
-                        projectile.draw(
-                            screen,
-                            map_width=pathway.map_width,
-                            map_height=pathway.map_height,
-                        )
+            for projectile in simulation.projectiles:
+                projectile.draw(screen, pathway.map_width, pathway.map_height)
 
             draw_hud(
                 screen,

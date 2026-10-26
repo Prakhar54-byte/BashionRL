@@ -1,0 +1,373 @@
+{
+  "environment": {
+    "schema": 7,
+    "king_repair_requires_destroyed": true,
+    "config": {
+      "window_title": "BastionRL",
+      "window_width": 1280,
+      "window_height": 720,
+      "fps": 60,
+      "rows": 40,
+      "cols": 64,
+      "tile_size": 32,
+      "map_path": "Assets/Maps/map1.png",
+      "pathway_path": "Assets/Maps/map1.tmj",
+      "enemy_assets": {
+        "enemy1": {
+          "sprite_path": "Assets/Main/Entities/Enemies/enemy1.png",
+          "base_path": null,
+          "gun_path": null
+        },
+        "enemy2": {
+          "sprite_path": "Assets/Main/Entities/Enemies/enemy2.png",
+          "base_path": null,
+          "gun_path": null
+        },
+        "light_tank": {
+          "sprite_path": null,
+          "base_path": "Assets/Main/Entities/Enemies/light_tank_base.png",
+          "gun_path": "Assets/Main/Entities/Enemies/light_tank_gun.png"
+        },
+        "heavy_tank": {
+          "sprite_path": null,
+          "base_path": "Assets/Main/Entities/Enemies/heavy_tank_base.png",
+          "gun_path": "Assets/Main/Entities/Enemies/heavy_tank_gun.png"
+        }
+      },
+      "defense_slot_path": "Assets/Main/Entities/Defense/slot.png",
+      "resource_slot_path": "Assets/Main/Entities/Defense/resource_slot.png",
+      "defense_base_path": "Assets/Main/Entities/Defense/cannon_base.png",
+      "defense_assets": {
+        "cannon": "Assets/Main/Entities/Defense/cannon.png",
+        "double_cannon": "Assets/Main/Entities/Defense/double_cannon.png"
+      },
+      "king_tower_sprite_path": "Assets/Main/Entities/King/king.png",
+      "resource_tower_sprite_path": null,
+      "enemies": {
+        "enemy1": {
+          "name": "Walking Soldier",
+          "speed": 90.0,
+          "max_health": 100.0,
+          "size_scale": 0.5,
+          "leak_damage": 10.0,
+          "kill_reward": 25,
+          "attack_damage": 15.0,
+          "attack_range": 45.0,
+          "attack_interval": 1.0,
+          "projectile_speed": 320.0
+        },
+        "enemy2": {
+          "name": "Advanced Soldier",
+          "speed": 110.0,
+          "max_health": 180.0,
+          "size_scale": 0.5,
+          "leak_damage": 10.0,
+          "kill_reward": 40,
+          "attack_damage": 15.0,
+          "attack_range": 45.0,
+          "attack_interval": 1.0,
+          "projectile_speed": 320.0
+        },
+        "light_tank": {
+          "name": "Light Tank",
+          "speed": 65.0,
+          "max_health": 280.0,
+          "size_scale": 0.8,
+          "leak_damage": 20.0,
+          "kill_reward": 50,
+          "attack_damage": 25.0,
+          "attack_range": 45.0,
+          "attack_interval": 1.0,
+          "projectile_speed": 320.0
+        },
+        "heavy_tank": {
+          "name": "Heavy Tank",
+          "speed": 35.0,
+          "max_health": 350.0,
+          "size_scale": 0.9,
+          "leak_damage": 30.0,
+          "kill_reward": 75,
+          "attack_damage": 40.0,
+          "attack_range": 45.0,
+          "attack_interval": 1.0,
+          "projectile_speed": 320.0
+        }
+      },
+      "towers": {
+        "cannon": {
+          "name": "Cannon",
+          "cost": 100,
+          "range_radius": 240.0,
+          "damage": 25.0,
+          "fire_rate": 1.0,
+          "projectile_speed": 350.0,
+          "max_health": 300.0,
+          "size_scale": 0.5,
+          "base_size_scale": 0.5,
+          "shots_per_burst": 1,
+          "burst_interval": 0.12
+        },
+        "double_cannon": {
+          "name": "Double Cannon",
+          "cost": 150,
+          "range_radius": 280.0,
+          "damage": 20.0,
+          "fire_rate": 2.0,
+          "projectile_speed": 400.0,
+          "max_health": 400.0,
+          "size_scale": 0.5,
+          "base_size_scale": 0.5,
+          "shots_per_burst": 2,
+          "burst_interval": 0.12
+        }
+      },
+      "resource_tower": {
+        "name": "Resource Tower",
+        "cost": 50,
+        "max_health": 250.0,
+        "production_interval": 10.0,
+        "production_amount": 50,
+        "size_scale": 1.0
+      },
+      "king_tower": {
+        "max_health": 500.0,
+        "repair_cost": 50,
+        "repair_duration": 8.0,
+        "size_scale": 1.0
+      },
+      "passive_income_interval": 15.0,
+      "passive_income_amount": 50
+    },
+    "map_sha256": "d08bf3ec110db301e19e358c0a2f38d74fe37879fd8a90ed4032f7f963d458fc",
+    "slots": [
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85,
+      88,
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      95,
+      96,
+      100,
+      101,
+      102,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127,
+      144,
+      146,
+      147
+    ],
+    "tower_types": [
+      "cannon",
+      "double_cannon"
+    ],
+    "enemy_types": [
+      "enemy1",
+      "enemy2",
+      "light_tank",
+      "heavy_tank"
+    ],
+    "observation_size": 1462,
+    "max_enemies": 64,
+    "reward_weights": {
+      "enemy_damage": 0.05,
+      "kills": 0.025,
+      "base_damage": -1.0,
+      "waves": 0.1,
+      "win": 2.5,
+      "loss": -1.0,
+      "invalid_action": -0.005,
+      "spending": -0.001
+    },
+    "action_count": 102,
+    "decision_ticks": 30,
+    "forced_wait_skip": true,
+    "timestep": 0.016666666666666666
+  },
+  "training_difficulty": "baseline",
+  "training_seed": 0,
+  "requested_steps": 2000000,
+  "training_max_steps": 2400,
+  "training_balance": {
+    "max_waves": 10,
+    "base_health": 100.0,
+    "starting_resources": 200,
+    "waves": {
+      "initial_enemy_count": 5,
+      "additional_enemies_per_wave": 2,
+      "spawn_interval": 1.0,
+      "initial_intermission": 15.0,
+      "intermission_between_waves": 10.0,
+      "difficulty_growth": 0.15,
+      "light_tank_start_wave": 2,
+      "strongest_enemy_start_wave": 3
+    },
+    "enemy_health_growth": 0.0
+  },
+  "training_parameters": {
+    "n_steps": 512,
+    "batch_size": 256,
+    "gamma": 0.999,
+    "gae_lambda": 0.98,
+    "ent_coef": 0.02,
+    "target_kl": 0.03,
+    "learning_rate": 0.0003,
+    "policy": "HierarchicalPolicy",
+    "policy_kwargs": {
+      "net_arch": [
+        128,
+        128
+      ],
+      "action_group_sizes": [
+        1,
+        92,
+        6,
+        3
+      ]
+    },
+    "n_envs": 8,
+    "device": "cpu",
+    "n_epochs": 5,
+    "rollout_size": 4096,
+    "vector_backend": "SubprocVecEnv",
+    "normalization": true,
+    "schedule": {
+      "start_step": 0,
+      "end_step": 2000000,
+      "lr_start": 0.0003,
+      "lr_end": 5e-05,
+      "entropy_start": 0.02,
+      "entropy_end": 0.005
+    },
+    "curriculum": {
+      "goals": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "window": 50,
+      "promotion_successes": 30,
+      "mode": "mixed"
+    },
+    "strategy": "hierarchical",
+    "deterministic_selection": "kind_then_target",
+    "validation": {
+      "seeds": [
+        10000,
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018,
+        10019,
+        10020,
+        10021,
+        10022,
+        10023,
+        10024,
+        10025,
+        10026,
+        10027,
+        10028,
+        10029
+      ],
+      "selection": [
+        "win_rate",
+        "mean_waves_completed",
+        "mean_base_health"
+      ],
+      "requested_frequency": 65536,
+      "effective_frequency": 65536,
+      "timing": "after_ppo_update"
+    }
+  },
+  "checkpoint_steps": 1310720,
+  "curriculum_state": {
+    "maximum": 10,
+    "mode": "mixed",
+    "promotion_successes": 30,
+    "goal_index": 9,
+    "successes": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "normalization": true
+}
